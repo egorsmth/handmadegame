@@ -23,17 +23,14 @@ internal void RenderGradient(int xOffset, int yOffset)
     uint8 *Row = (uint8 *)BitmapMemory;
     for (int y = 0; y < BitmapHeight; y++)
     {
-        uint8 *Pixel = (uint8 *)Row;
+        uint32 *Pixel = (uint32 *)Row;
 
         for (int x = 0; x < BitmapWidth; x++)
         {
-            *Pixel = (uint8)(x + xOffset);
-            ++Pixel;
-            *Pixel = (uint8)(y + yOffset);
-            ++Pixel;
-            *Pixel = 0;
-            ++Pixel;
-            *Pixel = 0;
+            uint8 Red = (uint8)(x + xOffset);
+            uint8 Green = (uint8)(y + xOffset);
+            uint8 Blue = (uint8)(y + yOffset);
+            *Pixel = ((Red << 16) | (Green << 8) | Blue);
             ++Pixel;
         }
         Row += Pitch;
