@@ -53,7 +53,7 @@ internal void Win32ResizeDIBSection(int width, int height)
     BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
     int BitmapMemorySize = BytesPerPixel * width * height;
-    BitmapMemory = VirtualAlloc(NULL, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+    BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
 internal void Win32UpdateWindow(HDC DeviceContext, RECT *WindowRect, int x, int y, int w, int h) 
