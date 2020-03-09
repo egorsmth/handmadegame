@@ -27,14 +27,14 @@ struct win32_offscreen_buffer {
 };
 global_variable win32_offscreen_buffer GlobalBackBuffer;
 
-internal void RenderGradient(win32_offscreen_buffer Buffer, int xOffset, int yOffset)
+internal void RenderGradient(win32_offscreen_buffer *Buffer, int xOffset, int yOffset)
 {
-    uint8 *Row = (uint8 *)Buffer.Memory;
-    for (int y = 0; y < Buffer.Height; y++)
+    uint8 *Row = (uint8 *)Buffer->Memory;
+    for (int y = 0; y < Buffer->Height; y++)
     {
         uint32 *Pixel = (uint32 *)Row;
 
-        for (int x = 0; x < Buffer.Width; x++)
+        for (int x = 0; x < Buffer->Width; x++)
         {
             uint8 Red = (uint8)(x + xOffset);
             uint8 Green = (uint8)(y + xOffset);
@@ -42,7 +42,7 @@ internal void RenderGradient(win32_offscreen_buffer Buffer, int xOffset, int yOf
             *Pixel = ((Red << 16) | (Green << 8) | Blue);
             ++Pixel;
         }
-        Row += Buffer.Pitch;
+        Row += Buffer->Pitch;
     }
 }
 
@@ -67,14 +67,14 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int width, i
     Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void Win32UpdateWindow(win32_offscreen_buffer Buffer, HDC DeviceContext, int Width, int Height) 
+internal void Win32DisplayBufferWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int Width, int Height) 
 {
     StretchDIBits(
         DeviceContext,
-        0, 0, Buffer.Width, Buffer.Height,
         0, 0, Width, Height,
-        Buffer.Memory,
-        &Buffer.Info,
+        0, 0, Buffer->Width, Buffer->Height,
+        Buffer->Memory,
+        &Buffer->Info,
         DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -104,9 +104,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
     switch (uMsg)
     {
         case WM_SIZE:
-        {
-            windowDims Dimensions = Win32GetWindowDims(hwnd);
-            Win32ResizeDIBSection(&GlobalBackBuffer, Dimensions.Width, Dimensions.Height);
+        {            
             OutputDebugStringA("WM_SIZE\n");
         }
             break;
@@ -140,8 +138,8 @@ LRESULT CALLBACK Win32MainWindowCallback(
             RECT ClientRectangle;
             GetClientRect(hwnd, &ClientRectangle);
             windowDims Dimensions = Win32GetWindowDims(hwnd);
-            Win32UpdateWindow(
-                GlobalBackBuffer,
+            Win32DisplayBufferWindow(
+                &GlobalBackBuffer,
                 DeviceContext,
                 Dimensions.Width, Dimensions.Height);
             EndPaint(hwnd, &Paint);
@@ -164,6 +162,9 @@ int CALLBACK WinMain(
     int       nShowCmd)
 {
     WNDCLASS WindowClass = {};
+
+    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
+
     WindowClass.style = CS_HREDRAW|CS_VREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = hInstance;
@@ -205,11 +206,11 @@ int CALLBACK WinMain(
                     DispatchMessageA(&Message);
                 }
                 win32_offscreen_buffer Buffer;
-                RenderGradient(GlobalBackBuffer, xOffset, yOffset);       
+                RenderGradient(&GlobalBackBuffer, xOffset, yOffset);       
                 HDC DeviceContext = GetDC(WIndowHandle);
                 windowDims Dimensions = Win32GetWindowDims(WIndowHandle);
-                Win32UpdateWindow(
-                    GlobalBackBuffer,
+                Win32DisplayBufferWindow(
+                    &GlobalBackBuffer,
                     DeviceContext,
                     Dimensions.Width, Dimensions.Height);
                 ReleaseDC(WIndowHandle, DeviceContext);
