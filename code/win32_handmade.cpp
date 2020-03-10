@@ -381,6 +381,9 @@ int CALLBACK WinMain(
     // WindowClass.hIcon = ;
     WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
+    LARGE_INTEGER PerfFreq;
+    QueryPerformanceFrequency(&PerfFreq);
+
     if (RegisterClass(&WindowClass))
     {
         HWND WIndowHandle = CreateWindowEx(
@@ -422,9 +425,14 @@ int CALLBACK WinMain(
             GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
             RUNNING = true;
+
+            LARGE_INTEGER EndPerfCounter;
+            LARGE_INTEGER StartPerfCounter;
+            QueryPerformanceCounter(&StartPerfCounter);
+            int64 LastCucleCount = __rdtsc();
             while(RUNNING) 
             {
-                
+               
                 MSG Message;
                 while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE))
                 {
@@ -493,6 +501,19 @@ int CALLBACK WinMain(
                     Dimensions.Width, Dimensions.Height);
                 ReleaseDC(WIndowHandle, DeviceContext);
                 ++xOffset;
+
+                QueryPerformanceCounter(&EndPerfCounter);
+                int64 CounterElapsed = EndPerfCounter.QuadPart - StartPerfCounter.QuadPart;
+                int32 MsPerFrame = (int32)((1000*CounterElapsed) / PerfFreq.QuadPart);
+                int32 FPS = (int32)(PerfFreq.QuadPart / CounterElapsed);
+
+                int64 EndCucleCount = __rdtsc();
+                int32 CyclesElapsed = (int32)((EndCucleCount - LastCucleCount) / (1000 * 1000));
+                char Buffer[256];
+                wsprintf(Buffer, "MS/frame: %d ms - FPS: %d - MegaCycles: %d\n", MsPerFrame, FPS, CyclesElapsed);
+                OutputDebugStringA(Buffer);
+                StartPerfCounter = EndPerfCounter;
+                LastCucleCount = EndCucleCount;
             }
         }
         else
