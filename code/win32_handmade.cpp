@@ -1,12 +1,14 @@
 #include <windows.h>
-#include <stdint.h>
 #include <Xinput.h>
 #include <dsound.h>
 #include <math.h>
+#include <stdint.h>
 
 #define internal static
 #define local_persist static
 #define global_variable static
+
+#define win32_PI 3.14159265359f
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -21,7 +23,7 @@ typedef int64_t int64;
 typedef float real32;
 typedef double real64;
 
-global_variable real32 win32_PI = 3.14159265358979323846;
+#include "handmade.cpp"
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
@@ -195,27 +197,6 @@ internal void Wind32FillSoundBuffer(
     }
 }
 
-internal void RenderGradient(
-    win32_offscreen_buffer *Buffer, 
-    int xOffset, int yOffset)
-{
-    uint8 *Row = (uint8 *)Buffer->Memory;
-    for (int y = 0; y < Buffer->Height; y++)
-    {
-        uint32 *Pixel = (uint32 *)Row;
-
-        for (int x = 0; x < Buffer->Width; x++)
-        {
-            uint8 Red = (uint8)(x + xOffset);
-            uint8 Green = (uint8)(y + xOffset);
-            uint8 Blue = (uint8)(y + yOffset);
-            *Pixel = ((Red << 16) | (Green << 8) | Blue);
-            ++Pixel;
-        }
-        Row += Buffer->Pitch;
-    }
-}
-
 internal void Win32ResizeDIBSection(
     win32_offscreen_buffer *Buffer, 
     int width, int height)
@@ -356,7 +337,6 @@ LRESULT CALLBACK Win32MainWindowCallback(
             break;
         default:
         {
-            // OutputDebugStringA("default\n");
             Result = DefWindowProc(hwnd, uMsg, wParam, lParam);
         }
             break;
@@ -470,7 +450,12 @@ int CALLBACK WinMain(
                     }
                 }
                 
-                RenderGradient(&GlobalBackBuffer, xOffset, yOffset);       
+                game_offscreen_buffer Buffer = {};
+                Buffer.Memory = GlobalBackBuffer.Memory;
+                Buffer.Width = GlobalBackBuffer.Width;
+                Buffer.Height = GlobalBackBuffer.Height;
+                Buffer.Pitch = GlobalBackBuffer.Pitch;
+                GameUpdateAndRender(&Buffer, xOffset, yOffset);
 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
@@ -502,6 +487,7 @@ int CALLBACK WinMain(
                 ReleaseDC(WIndowHandle, DeviceContext);
                 ++xOffset;
 
+#if 0
                 QueryPerformanceCounter(&EndPerfCounter);
                 int64 CounterElapsed = EndPerfCounter.QuadPart - StartPerfCounter.QuadPart;
                 int32 MsPerFrame = (int32)((1000*CounterElapsed) / PerfFreq.QuadPart);
@@ -514,6 +500,7 @@ int CALLBACK WinMain(
                 OutputDebugStringA(Buffer);
                 StartPerfCounter = EndPerfCounter;
                 LastCucleCount = EndCucleCount;
+#endif
             }
         }
         else
