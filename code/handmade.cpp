@@ -1,10 +1,8 @@
 #include "handmade.h"
 
-internal void OutputSound(game_sound_output_buffer *SoundBuffer)
+internal void OutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz, int ToneVolume)
 {
     local_persist real32 tSine;
-    int16 ToneVolume = 3000;
-    int ToneHz = 256;
     int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
 
     int16 *SampleOut = SoundBuffer->Samples;
@@ -42,10 +40,42 @@ internal void RenderGradient(
 }
 
 internal void GameUpdateAndRender(
+    game_memory *Memory,
     game_offscreen_buffer *Buffer,
-    int xOffset, int yOffset,
-    game_sound_output_buffer *SoundBuffer)
+    game_sound_output_buffer *SoundBuffer,
+    game_input *Input)
 {
-    OutputSound(SoundBuffer);
-    RenderGradient(Buffer, xOffset, yOffset);
+    Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
+
+    game_state *GameState = (game_state *)Memory->PermanentStorage;
+    if (!Memory->isInitialized)
+    {
+
+        char *Filename = "test.bmp";
+        debug_file_read FileReadResult = DEBUGPlatformReadEntireFile(Filename);
+        if(FileReadResult.ContentSize)
+        {
+            DEBUGPlatformWriteEntireFile(Filename, 300, "asd");
+            DEBUGPlatformFreeFileMemory(FileReadResult.Content);
+        }
+
+        GameState->ToneHz = 256;
+
+        Memory->isInitialized = true;
+    }
+
+    game_controller_input Input0 = Input->Controllers[0];
+    if (Input0.IsAnalog)
+    {
+        
+    }
+    else
+    {
+        
+    }
+    
+    RenderGradient(Buffer, GameState->GreenOffset, GameState->BlueOffset);
+
+    local_persist int ToneVolume = 1000;
+    OutputSound(SoundBuffer, GameState->ToneHz, ToneVolume);
 }

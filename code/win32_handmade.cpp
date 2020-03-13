@@ -23,6 +23,7 @@ typedef int64_t int64;
 typedef float real32;
 typedef double real64;
 
+#include "win32_handmade.h"
 #include "handmade.cpp"
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
@@ -38,6 +39,67 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+
+
+
+internal debug_file_read DEBUGPlatformReadEntireFile(char *Filename)
+{
+    debug_file_read Result = {};
+    HANDLE FileHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE)
+    {
+        LARGE_INTEGER FileSize;
+        if (GetFileSizeEx(FileHandle, &FileSize))
+        {
+            uint32 FileSize32 = SafeTruncateUint32(FileSize.QuadPart);
+            Result.Content = VirtualAlloc(0, FileSize.QuadPart, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            if (Result.Content)
+            {
+                DWORD BytesRead;
+                if(ReadFile(FileHandle, Result.Content, FileSize32, &BytesRead, 0) && (FileSize32 == BytesRead))
+                {
+                    Result.ContentSize = FileSize32;
+                }
+                else
+                {
+                    DEBUGPlatformFreeFileMemory(Result.Content);
+                    Result.Content = 0;
+                }
+            }
+        }
+        CloseHandle(FileHandle);
+    }
+    return Result;
+}
+
+internal void DEBUGPlatformFreeFileMemory(void *Memory)
+{
+    if (Memory)
+    {
+        VirtualFree(Memory, 0, MEM_RELEASE);
+    }
+}
+
+internal bool DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory)
+{
+    bool Result = false;
+    HANDLE FileHandle = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    if (FileHandle != INVALID_HANDLE_VALUE)
+    {
+        DWORD BytesWriten;
+        if (WriteFile(FileHandle, Memory, MemorySize, &BytesWriten, 0) && (BytesWriten == MemorySize))
+        {
+            Result = true;               
+        }
+        else
+        {
+
+        }
+        CloseHandle(FileHandle);
+        
+    }
+    return Result;
+}
 
 internal void LoadXInput(void)
 {
@@ -128,32 +190,7 @@ internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferS
 
 global_variable bool RUNNING;
 
-struct win32_offscreen_buffer {
-    BITMAPINFO Info;
-    void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
-    int BytesPerPixel;
-};
 global_variable win32_offscreen_buffer GlobalBackBuffer;
-
-struct win32_window_dims {
-    int Width;
-    int Height;
-};
-
-struct win32_sound_output
-{
-    int SamplesPerSecond;
-    int ToneHz;
-    int16 ToneVolume;
-    uint32 RunningSampleIndex;
-    int WavePeriod;
-    int BytesPerSample;
-    int SecondaryBufferSize;
-    int LatencySampleCount;
-};
 
 internal void Win32ClearSoundBuffer(win32_sound_output *SoundOutput)
 {
@@ -416,14 +453,8 @@ int CALLBACK WinMain(
         {
             HDC DeviceContext = GetDC(WIndowHandle);
 
-            int xOffset = 0;
-            int yOffset = 0;
-
             win32_sound_output SoundOut = {};
             SoundOut.SamplesPerSecond = 48000;
-            SoundOut.ToneHz = 256;
-            SoundOut.ToneVolume = 1000;
-            SoundOut.WavePeriod = SoundOut.SamplesPerSecond/SoundOut.ToneHz;
             SoundOut.BytesPerSample = sizeof(int16)*2;
             SoundOut.SecondaryBufferSize = SoundOut.SamplesPerSecond*SoundOut.BytesPerSample;
             SoundOut.LatencySampleCount = SoundOut.SamplesPerSecond / 15;
@@ -438,6 +469,31 @@ int CALLBACK WinMain(
 
             int16 *Samples = (int16 *)VirtualAlloc(0, SoundOut.SecondaryBufferSize,
                                                 MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+#if INTERNAL_BUILD
+            LPVOID BaseAddress = 0;
+#else
+            LPVOID BaseAddress = (LPVOID)(Gigabytes((uint64)2) * 1024);
+#endif
+
+            game_memory GameMemory = {};
+            GameMemory.PermanentStorageSize = Megabytes(64);
+            GameMemory.TransientStorageSize = Gigabytes((uint64)4);
+            uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
+            GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, TotalSize,
+                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
+            
+            if (!Samples || !GameMemory.TransientStorage || !GameMemory.PermanentStorage)
+            {
+                OutputDebugStringA("Memory allocation problem\n");
+                return(1);
+            }
+            else
+            {
+                OutputDebugStringA("Game Memory allocated\n");
+            }
+            
 
             LARGE_INTEGER EndPerfCounter;
             LARGE_INTEGER StartPerfCounter;
@@ -511,12 +567,15 @@ int CALLBACK WinMain(
                 SoundBuffer.SampleCount = BytesToWrite / SoundOut.BytesPerSample;
                 SoundBuffer.Samples = Samples;
                 
-                game_offscreen_buffer Buffer = {};
-                Buffer.Memory = GlobalBackBuffer.Memory;
-                Buffer.Width = GlobalBackBuffer.Width;
-                Buffer.Height = GlobalBackBuffer.Height;
-                Buffer.Pitch = GlobalBackBuffer.Pitch;
-                GameUpdateAndRender(&Buffer, xOffset, yOffset, &SoundBuffer);
+                game_offscreen_buffer OffscreenBuffer = {};
+                OffscreenBuffer.Memory = GlobalBackBuffer.Memory;
+                OffscreenBuffer.Width = GlobalBackBuffer.Width;
+                OffscreenBuffer.Height = GlobalBackBuffer.Height;
+                OffscreenBuffer.Pitch = GlobalBackBuffer.Pitch;
+
+                game_input Inp = {};
+
+                GameUpdateAndRender(&GameMemory, &OffscreenBuffer, &SoundBuffer, &Inp);
 
                 if (SoundValid)
                 {                    
@@ -532,7 +591,6 @@ int CALLBACK WinMain(
                     DeviceContext,
                     Dimensions.Width, Dimensions.Height);
                 ReleaseDC(WIndowHandle, DeviceContext);
-                ++xOffset;
 
 #if 0 //profiling
                 QueryPerformanceCounter(&EndPerfCounter);
