@@ -55,12 +55,18 @@ struct game_controller_input
 {
     bool IsAnalog;
 
-    game_button_state Up;
-    game_button_state Down;
-    game_button_state Left;
-    game_button_state Right;
-    game_button_state LeftShoulder;
-    game_button_state RightShoulder;
+    union
+    {
+        game_button_state Buttons[6];
+        struct {
+            game_button_state Up;
+            game_button_state Down;
+            game_button_state Left;
+            game_button_state Right;
+            game_button_state LeftShoulder;
+            game_button_state RightShoulder;
+        };
+    };
 };
 
 struct game_input

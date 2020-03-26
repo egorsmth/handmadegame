@@ -6,7 +6,7 @@ internal void OutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz, int
     int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
 
     int16 *SampleOut = SoundBuffer->Samples;
-    for (DWORD SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+    for (DWORD SampleIndex = 0; SampleIndex < (DWORD)SoundBuffer->SampleCount; ++SampleIndex)
     {
 
         real32 sineValue = sinf(tSine);
@@ -65,9 +65,9 @@ internal void GameUpdateAndRender(
     }
 
     game_controller_input Input0 = Input->Controllers[0];
-    if (Input0.IsAnalog)
+    if (Input0.Up.EndedDown)
     {
-        
+        GameState->BlueOffset += 1;
     }
     else
     {
