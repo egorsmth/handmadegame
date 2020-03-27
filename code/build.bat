@@ -1,7 +1,9 @@
 @echo off
 
+set CommonCompilerFlags=-MT -nologo -Gm- -GR- -EHa- -Od -Oi -WX -W4 -W4 -wd4201 -wd4100 -wd4189 -DSLOW_CODE=1 -DINTERNAL_BUILD=1 -wd4189 -Zi
+set CommonLinkerFlags=user32.lib gdi32.lib winmm.lib
 mkdir ..\..\build
 pushd ..\..\build
 
-cl -W4 -DSLOW_CODE=1 -DINTERNAL_BUILD=1 -wd4189 -Zi ..\handmadehero\code\win32_handmade.cpp user32.lib gdi32.lib
+cl %CommonCompilerFlags% ..\handmadehero\code\win32_handmade.cpp /link %CommonLinkerFlags%
 popd 
