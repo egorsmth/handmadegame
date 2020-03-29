@@ -86,6 +86,10 @@ struct game_memory
 internal void GameUpdateAndRender(
     game_memory *Memory,
     game_offscreen_buffer *Buffer,
+    game_input *Input);
+
+internal void GameGetSpundSamples(
+    game_memory *Memory,
     game_sound_output_buffer *SoundBuffer,
     game_input *Input);
 

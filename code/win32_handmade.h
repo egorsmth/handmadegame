@@ -1,6 +1,7 @@
 #if !defined(H_WIN32_HANDMADE)
 
-struct win32_offscreen_buffer {
+struct win32_offscreen_buffer 
+{
     BITMAPINFO Info;
     void *Memory;
     int Width;
@@ -9,7 +10,8 @@ struct win32_offscreen_buffer {
     int BytesPerPixel;
 };
 
-struct win32_window_dims {
+struct win32_window_dims
+{
     int Width;
     int Height;
 };
@@ -21,6 +23,13 @@ struct win32_sound_output
     int BytesPerSample;
     int SecondaryBufferSize;
     int LatencySampleCount;
+    int SafetyBytes;
+};
+
+struct win32_debug_time_marker
+{
+    DWORD PlayCursor;
+    DWORD WriteCursor;
 };
 
 #define H_WIN32_HANDMADE

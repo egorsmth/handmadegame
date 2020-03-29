@@ -42,7 +42,6 @@ internal void RenderGradient(
 internal void GameUpdateAndRender(
     game_memory *Memory,
     game_offscreen_buffer *Buffer,
-    game_sound_output_buffer *SoundBuffer,
     game_input *Input)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -57,9 +56,7 @@ internal void GameUpdateAndRender(
         {
             DEBUGPlatformWriteEntireFile(Filename, 300, "asd");
             DEBUGPlatformFreeFileMemory(FileReadResult.Content);
-        }
-
-        GameState->ToneHz = 256;
+        }      
 
         Memory->isInitialized = true;
     }
@@ -75,7 +72,24 @@ internal void GameUpdateAndRender(
     }
     
     RenderGradient(Buffer, GameState->GreenOffset, GameState->BlueOffset);
+}
 
+internal void GameGetSpundSamples(
+    game_memory *Memory,
+    game_sound_output_buffer *SoundBuffer,
+    game_input *Input)
+{
+    game_state *GameState = (game_state *)Memory->PermanentStorage;
     local_persist int ToneVolume = 1000;
+    if (GameState->ToneHz == 0) 
+    {
+        GameState->ToneHz = 256;
+    }
+    game_controller_input Input0 = Input->Controllers[0];
+    if (Input0.Up.EndedDown)
+    {
+        
+        GameState->ToneHz += 1;
+    }
     OutputSound(SoundBuffer, GameState->ToneHz, ToneVolume);
 }
