@@ -1,31 +1,16 @@
+#include "handmade.h"
+
 #include <windows.h>
 #include <Xinput.h>
 #include <dsound.h>
-#include <math.h>
-#include <stdint.h>
 #include <stdio.h>
 
-#define internal static
-#define local_persist static
-#define global_variable static
-
-#define win32_PI 3.14159265359f
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-
-typedef float real32;
-typedef double real64;
-
 #include "win32_handmade.h"
-#include "handmade.cpp"
+
+global_variable bool RUNNING;
+global_variable win32_offscreen_buffer GlobalBackBuffer;
+global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+global_variable int64 PerfCountFrequency;
 
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
@@ -39,13 +24,15 @@ X_INPUT_SET_STATE(XInputSetStateStub) {return ERROR_DEVICE_NOT_CONNECTED;}
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-global_variable bool RUNNING;
-global_variable win32_offscreen_buffer GlobalBackBuffer;
-global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
-global_variable int64 PerfCountFrequency;
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+{
+    if (Memory)
+    {
+        VirtualFree(Memory, 0, MEM_RELEASE);
+    }
+}
 
-
-internal debug_file_read DEBUGPlatformReadEntireFile(char *Filename)
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
     debug_file_read Result = {};
     HANDLE FileHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
@@ -75,15 +62,7 @@ internal debug_file_read DEBUGPlatformReadEntireFile(char *Filename)
     return Result;
 }
 
-internal void DEBUGPlatformFreeFileMemory(void *Memory)
-{
-    if (Memory)
-    {
-        VirtualFree(Memory, 0, MEM_RELEASE);
-    }
-}
-
-internal bool DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory)
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
     bool Result = false;
     HANDLE FileHandle = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
@@ -104,7 +83,53 @@ internal bool DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, vo
     return Result;
 }
 
-internal void LoadXInput(void)
+struct win32_game_code
+{
+    HMODULE GameCodeDLL;
+    game_update_and_render *UpdateAndRender;
+    game_get_sound_samples *GetSoundSamples;
+
+    bool isValid;
+};
+
+internal win32_game_code Win32LoadGameCode(void)
+{
+    win32_game_code Result = {};
+
+    Result.GameCodeDLL = LoadLibraryA("handmade.dll");
+    if (Result.GameCodeDLL)
+    {
+        Result.GetSoundSamples = (game_get_sound_samples *)
+            GetProcAddress(Result.GameCodeDLL, "GameGetSoundSamples");
+        
+        Result.UpdateAndRender = (game_update_and_render *)
+            GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
+
+        Result.isValid = (Result.GetSoundSamples && Result.UpdateAndRender);
+    }
+
+    if (!Result.isValid)
+    {
+        Result.GetSoundSamples = GameGetSoundSamplesStub;
+        Result.UpdateAndRender = GameUpdateAndRenderStub;
+    }
+
+    return Result;
+}
+
+internal void Win32UnloadGameCode(win32_game_code *GameCode)
+{
+    if (GameCode->GameCodeDLL)
+    {
+        FreeLibrary(GameCode->GameCodeDLL);
+    }
+
+    GameCode->isValid = false;
+    GameCode->GetSoundSamples = GameGetSoundSamplesStub;
+    GameCode->UpdateAndRender = GameUpdateAndRenderStub;
+}
+
+internal void Win32LoadXInput(void)
 {
     HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
     if (!XInputLibrary)
@@ -539,7 +564,7 @@ int CALLBACK WinMain(
     UINT DesiredSchedulerMs = 1;
     bool SleepIsGranular = (timeBeginPeriod(DesiredSchedulerMs) == TIMERR_NOERROR);
 
-    LoadXInput();
+    Win32LoadXInput();
     WNDCLASSA WindowClass = {};
 
     Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
@@ -604,6 +629,9 @@ int CALLBACK WinMain(
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(64);
             GameMemory.TransientStorageSize = Gigabytes((uint64)1);
+            GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+            GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
             GameMemory.PermanentStorage = VirtualAlloc(0, TotalSize,
                                             MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -633,6 +661,8 @@ int CALLBACK WinMain(
             game_input Inp = {};           
             while(RUNNING) 
             {
+                win32_game_code GameCode = Win32LoadGameCode();
+
                 game_controller_input *KeyboardController = &Inp.Controllers[0];
                 game_controller_input Zero = {};
                 for (int i = 0; i < ArrayCount(KeyboardController->Buttons); i++)
@@ -674,7 +704,7 @@ int CALLBACK WinMain(
                 OffscreenBuffer.Width = GlobalBackBuffer.Width;
                 OffscreenBuffer.Height = GlobalBackBuffer.Height;
                 OffscreenBuffer.Pitch = GlobalBackBuffer.Pitch;
-                GameUpdateAndRender(&GameMemory, &OffscreenBuffer, &Inp);
+                GameCode.UpdateAndRender(&GameMemory, &OffscreenBuffer, &Inp);
 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
@@ -728,7 +758,7 @@ int CALLBACK WinMain(
                     SoundBuffer.SamplesPerSecond = SoundOut.SamplesPerSecond;
                     SoundBuffer.SampleCount = BytesToWrite / SoundOut.BytesPerSample;
                     SoundBuffer.Samples = Samples;
-                    GameGetSpundSamples(&GameMemory, &SoundBuffer, &Inp);
+                    GameCode.GetSoundSamples(&GameMemory, &SoundBuffer, &Inp);
 
 #if INTERNAL_BUILD
                     DWORD PlayCursor;
@@ -832,7 +862,8 @@ int CALLBACK WinMain(
                 _snprintf_s(FPSBuffer, sizeof(FPSBuffer), "MS/frame: %.02f ms - FPS: %.02f - MegaCycles: %.02f\n", MsPerFrame, FPS, MCPF);
                 OutputDebugStringA(FPSBuffer);
 #endif
-// profiling end           
+// profiling end
+                Win32UnloadGameCode(&GameCode);
             }
         }
         else
