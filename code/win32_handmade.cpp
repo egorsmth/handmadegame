@@ -83,20 +83,25 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     return Result;
 }
 
-struct win32_game_code
+inline FILETIME Win32GetLastWriteTime(char *Filename)
 {
-    HMODULE GameCodeDLL;
-    game_update_and_render *UpdateAndRender;
-    game_get_sound_samples *GetSoundSamples;
+    FILETIME ft = {};
+    WIN32_FIND_DATA fd;
+    HANDLE fhdl = FindFirstFileA(Filename, &fd);
+    if (fhdl != INVALID_HANDLE_VALUE)
+    {
+        ft = fd.ftLastWriteTime;
+        FindClose(fhdl);
+    }
 
-    bool isValid;
-};
+    return ft;
+}
 
-internal win32_game_code Win32LoadGameCode(void)
+internal win32_game_code Win32LoadGameCode(char *SourceDLL, char* TempDLL)
 {
-    win32_game_code Result = {};
-
-    Result.GameCodeDLL = LoadLibraryA("handmade.dll");
+    win32_game_code Result = {};   
+    CopyFile(SourceDLL, TempDLL, FALSE);
+    Result.GameCodeDLL = LoadLibraryA(TempDLL);
     if (Result.GameCodeDLL)
     {
         Result.GetSoundSamples = (game_get_sound_samples *)
@@ -106,6 +111,8 @@ internal win32_game_code Win32LoadGameCode(void)
             GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
 
         Result.isValid = (Result.GetSoundSamples && Result.UpdateAndRender);
+        FILETIME ft = Win32GetLastWriteTime(SourceDLL);
+        Result.LastFileTime = ft;
     }
 
     if (!Result.isValid)
@@ -551,12 +558,56 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *BackBuffer,
     }
 }
 
+internal void ConcatStrings(
+    size_t SizeA, char *A,
+    size_t SizeB, char *B,
+    char *Dest
+)
+{
+    for (size_t i = 0; i < SizeA; i++)
+    {
+        *Dest++ = *A++;
+    }
+    
+    for (size_t i = 0; i < SizeB; i++)
+    {
+        *Dest++ = *B++;
+    }
+    *Dest++ = 0;
+}
+
 int CALLBACK WinMain(
     HINSTANCE hInstance,
     HINSTANCE hPrevInstance,
     LPSTR     lpCmdLine,
     int       nShowCmd)
 {
+
+    char EXEFileName[MAX_PATH];
+    DWORD SizeOfFile = GetModuleFileNameA(0, EXEFileName, sizeof(EXEFileName));
+    char *OnePastLastSlash = EXEFileName;
+    for (char *Scan = EXEFileName; *Scan; ++Scan)
+    {
+        if (*Scan == '\\')
+        {
+            OnePastLastSlash = Scan + 1;
+        }
+    }
+
+    char SourceGameCodeFilename[] = "handmade.dll";
+    char SourceGameCodeFullPath[MAX_PATH];
+    ConcatStrings(
+        OnePastLastSlash - EXEFileName, EXEFileName, 
+        sizeof(SourceGameCodeFilename)-1, SourceGameCodeFilename,
+        SourceGameCodeFullPath);
+
+    char TempGameCodeFilename[] = "temp_handmade.dll";
+    char TempGameCodeFullPath[MAX_PATH];
+    ConcatStrings(
+        OnePastLastSlash - EXEFileName, EXEFileName, 
+        sizeof(TempGameCodeFilename)-1, TempGameCodeFilename,
+        TempGameCodeFullPath);
+
     LARGE_INTEGER PerfFreq;
     QueryPerformanceFrequency(&PerfFreq);
     PerfCountFrequency = PerfFreq.QuadPart;
@@ -657,11 +708,19 @@ int CALLBACK WinMain(
             DWORD AudioLatencyBytes = 0;
             real32 AudioLatencySeconds = 0;
 
+            char *SourceFilename = "handmade.dll"; 
+
             int64 LastCycleCount = __rdtsc();
             game_input Inp = {};           
+            win32_game_code GameCode = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
             while(RUNNING) 
             {
-                win32_game_code GameCode = Win32LoadGameCode();
+                FILETIME newft = Win32GetLastWriteTime(SourceGameCodeFullPath);
+                if (CompareFileTime(&newft, &GameCode.LastFileTime) != 0)
+                {
+                    Win32UnloadGameCode(&GameCode);
+                    GameCode = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
+                }
 
                 game_controller_input *KeyboardController = &Inp.Controllers[0];
                 game_controller_input Zero = {};
@@ -863,7 +922,6 @@ int CALLBACK WinMain(
                 OutputDebugStringA(FPSBuffer);
 #endif
 // profiling end
-                Win32UnloadGameCode(&GameCode);
             }
         }
         else
