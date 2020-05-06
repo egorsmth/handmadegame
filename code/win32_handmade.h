@@ -41,5 +41,16 @@ struct win32_game_code
     bool isValid;
 };
 
+struct win32_game_loop
+{
+    HANDLE Journal;
+    HANDLE Tempjournal;
+    uint64 JournalSize;
+    void *GameMemoryBlock;
+
+    int IndexSave;
+    int IndexPlay;
+};
+
 #define H_WIN32_HANDMADE
 #endif

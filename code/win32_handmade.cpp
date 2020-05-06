@@ -410,7 +410,68 @@ LRESULT CALLBACK Win32MainWindowCallback(
     }
     return Result;
 }
-internal void Win32ProcessPendingMessages(game_controller_input *KeyboardController)
+
+internal void Win32BeginRecordingInput(win32_game_loop *GameLoop, int InputRecordingIndex)
+{
+    GameLoop->IndexSave = InputRecordingIndex;
+
+    char *Filename = "foo.hmi";
+    GameLoop->Journal = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    DWORD BytesToWrite = (DWORD)GameLoop->JournalSize;
+    Assert(BytesToWrite == GameLoop->JournalSize);
+    DWORD BytesWriten;
+    WriteFile(GameLoop->Journal, GameLoop->GameMemoryBlock, BytesToWrite, &BytesWriten, 0);
+
+}
+
+internal void win32EndRecordingInput(win32_game_loop *GameLoop)
+{
+    CloseHandle(GameLoop->Journal);
+    GameLoop->IndexSave = 0;
+}
+
+internal void Win32BeginInputPlayback(win32_game_loop *GameLoop, int InputPlayIndex)
+{
+    GameLoop->IndexPlay = InputPlayIndex;
+
+    char *Filename = "foo.hmi";
+    GameLoop->Tempjournal = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+
+    DWORD BytesToRead = (DWORD)GameLoop->JournalSize;
+    Assert(GameLoop->JournalSize == BytesToRead);
+    DWORD BytesRead;
+    ReadFile(GameLoop->Tempjournal, GameLoop->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+}
+
+internal void Win32EndInputPlayback(win32_game_loop *GameLoop)
+{
+    CloseHandle(GameLoop->Tempjournal);
+    GameLoop->IndexPlay = 0;
+}
+
+internal void Win32RecordInput(win32_game_loop *GameLoop, game_input *Input)
+{
+    DWORD BytesWriten;
+    WriteFile(GameLoop->Journal, Input, sizeof(*Input), &BytesWriten, 0);
+}
+
+internal void Win32PlaybackInput(win32_game_loop *GameLoop, game_input *NewInput)
+{
+    DWORD BytesRead;
+    ReadFile(GameLoop->Tempjournal, NewInput, sizeof(*NewInput), &BytesRead, 0);
+    if (BytesRead)
+    {
+
+    }
+    else
+    {
+        int PlayIndex = GameLoop->IndexPlay;
+        Win32EndInputPlayback(GameLoop);
+        Win32BeginInputPlayback(GameLoop, PlayIndex);
+    }
+}
+
+internal void Win32ProcessPendingMessages(game_controller_input *KeyboardController, win32_game_loop *GameLoop)
 {
     MSG Message;
     while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE))
@@ -419,6 +480,7 @@ internal void Win32ProcessPendingMessages(game_controller_input *KeyboardControl
         {
             RUNNING = false;
         }
+        
         switch (Message.message)
         {
             case WM_SYSKEYDOWN:
@@ -450,6 +512,26 @@ internal void Win32ProcessPendingMessages(game_controller_input *KeyboardControl
                 else if (VKcode == 'Q')
                 {
                     Win32ProcessKeyboardEvent(&KeyboardController->LeftShoulder, isDown);
+                }
+                else if (VKcode == 'L')
+                {
+                    if (isDown)
+                    {
+                        if (GameLoop->IndexSave == 0)
+                        {
+                            Win32BeginRecordingInput(GameLoop, 1);
+                        }
+                        else 
+                        {
+                            win32EndRecordingInput(GameLoop);
+                            Win32BeginInputPlayback(GameLoop, 1);
+                        }
+                    }
+                }
+                else if (VKcode == VK_SPACE)
+                {
+                    OutputDebugStringA("KEY SPACE\n");
+                    Win32ProcessKeyboardEvent(&KeyboardController->Space, isDown);
                 }
                 else if (VKcode == VK_UP)
                 {
@@ -676,6 +758,7 @@ int CALLBACK WinMain(
 // #else
 //             LPVOID BaseAddress = (LPVOID)(Gigabytes((uint64)2) * 1024);
 // #endif
+            win32_game_loop GameLoop = {};
 
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(64);
@@ -684,8 +767,10 @@ int CALLBACK WinMain(
             GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
             GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
-            GameMemory.PermanentStorage = VirtualAlloc(0, TotalSize,
+            GameLoop.JournalSize = TotalSize;
+            GameLoop.GameMemoryBlock = VirtualAlloc(0, TotalSize,
                                             MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.PermanentStorage = GameLoop.GameMemoryBlock;
             GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
             
             if (!Samples || !GameMemory.TransientStorage || !GameMemory.PermanentStorage)
@@ -711,7 +796,7 @@ int CALLBACK WinMain(
             char *SourceFilename = "handmade.dll"; 
 
             int64 LastCycleCount = __rdtsc();
-            game_input Inp = {};           
+            game_input Inp = {};
             win32_game_code GameCode = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
             while(RUNNING) 
             {
@@ -729,7 +814,7 @@ int CALLBACK WinMain(
                     Zero.Buttons[i].EndedDown = KeyboardController->Buttons[i].EndedDown;
                 }
                 *KeyboardController = Zero;
-                Win32ProcessPendingMessages(KeyboardController);
+                Win32ProcessPendingMessages(KeyboardController, &GameLoop);
                 /*note: XUSER_MAX_COUNT-1 keyboard*/
                 for (DWORD ControllerIndex = 0; ControllerIndex < 3; ControllerIndex++)
                 {
@@ -757,12 +842,23 @@ int CALLBACK WinMain(
 
                     }
                 }
-                               
                 game_offscreen_buffer OffscreenBuffer = {};
                 OffscreenBuffer.Memory = GlobalBackBuffer.Memory;
                 OffscreenBuffer.Width = GlobalBackBuffer.Width;
                 OffscreenBuffer.Height = GlobalBackBuffer.Height;
                 OffscreenBuffer.Pitch = GlobalBackBuffer.Pitch;
+                
+
+                if (GameLoop.IndexSave)
+                {
+                    Win32RecordInput(&GameLoop, &Inp);
+                }
+
+                if (GameLoop.IndexPlay)
+                {
+                    Win32PlaybackInput(&GameLoop, &Inp);
+                }
+
                 GameCode.UpdateAndRender(&GameMemory, &OffscreenBuffer, &Inp);
 
                 DWORD PlayCursor;

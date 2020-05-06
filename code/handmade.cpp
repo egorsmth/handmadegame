@@ -45,6 +45,29 @@ internal void RenderGradient(
     }
 }
 
+internal void RenderPlayer(game_offscreen_buffer *Buffer, int PlayerX, int PlayerY)
+{
+    if (PlayerX < 0 || PlayerX + 10 > Buffer->Width)
+    {
+        return;
+    }
+
+    if (PlayerY < 0 || PlayerY + 10 > Buffer->Height)
+    {
+        return;
+    }
+
+    uint32 *Pixel = (uint32 *)Buffer->Memory + PlayerX + PlayerY * Buffer->Width;
+    for (int y = 0; y < 10; y++)
+    {
+        for (int x = 0; x < 10; x++)
+        {
+            *Pixel++ = 0xFFFFFF;
+        }
+        Pixel += (Buffer->Width - 10);
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -69,18 +92,47 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameState->BlueOffset += 1;
     }
-    else
+    
+    if (Input0.Up.EndedDown)
     {
-        
+        GameState->PlayerY -= 1;
+    }
+
+    if (Input0.Down.EndedDown)
+    {
+        GameState->PlayerY += 1;
+    }
+
+    if (Input0.Left.EndedDown)
+    {
+        GameState->PlayerX -= 1;
+    }
+
+    if (Input0.Right.EndedDown)
+    {
+        GameState->PlayerX += 1;
+    }
+
+    if (Input0.Space.EndedDown)
+    {
+        GameState->PlayerTimer = 4.0;
+    }
+
+    if (GameState->PlayerTimer > 0)
+    {
+        GameState->PlayerY += (int)(10.0f*sinf(win32_PI/2 * GameState->PlayerTimer));
+        GameState->PlayerTimer -= (real32)0.066;
     }
     
+    
     RenderGradient(Buffer, GameState->GreenOffset, GameState->BlueOffset);
+    RenderPlayer(Buffer, GameState->PlayerX, GameState->PlayerY);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
-    local_persist int ToneVolume = 1000;
+    local_persist int ToneVolume = 0;
     if (GameState->ToneHz == 0) 
     {
         GameState->ToneHz = 256;

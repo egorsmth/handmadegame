@@ -85,7 +85,7 @@ struct game_controller_input
 
     union
     {
-        game_button_state Buttons[6];
+        game_button_state Buttons[8];
         struct {
             game_button_state Up;
             game_button_state Down;
@@ -93,6 +93,8 @@ struct game_controller_input
             game_button_state Right;
             game_button_state LeftShoulder;
             game_button_state RightShoulder;
+            game_button_state L;
+            game_button_state Space;
         };
     };
 };
@@ -129,6 +131,10 @@ struct game_state
     int GreenOffset;
     int BlueOffset;
     real32 tSine;
+
+    int PlayerX;
+    int PlayerY;
+    real32 PlayerTimer;
 };
 
 #define HANDMADE_H
