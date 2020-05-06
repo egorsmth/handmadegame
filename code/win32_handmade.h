@@ -50,6 +50,10 @@ struct win32_game_loop
 
     int IndexSave;
     int IndexPlay;
+
+    char MainEXEFileName[MAX_PATH];
+    DWORD SizeOfFile;
+    char *OnePastLastSlashFilename;
 };
 
 #define H_WIN32_HANDMADE

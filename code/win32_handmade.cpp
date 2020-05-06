@@ -24,6 +24,55 @@ X_INPUT_SET_STATE(XInputSetStateStub) {return ERROR_DEVICE_NOT_CONNECTED;}
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
+internal void ConcatStrings(
+    size_t SizeA, char *A,
+    size_t SizeB, char *B,
+    char *Dest
+)
+{
+    for (size_t i = 0; i < SizeA; i++)
+    {
+        *Dest++ = *A++;
+    }
+    
+    for (size_t i = 0; i < SizeB; i++)
+    {
+        *Dest++ = *B++;
+    }
+    *Dest++ = 0;
+}
+
+internal void Win32GetOnePastLastSlash(win32_game_loop *GameState)
+{
+    GameState->OnePastLastSlashFilename = GameState->MainEXEFileName;
+    for (char *Scan = GameState->MainEXEFileName; *Scan; ++Scan)
+    {
+        if (*Scan == '\\')
+        {
+            GameState->OnePastLastSlashFilename = Scan + 1;
+        }
+    }
+}
+
+internal int StringLength(char *S)
+{
+    int Count = 0;
+    while(*S++)
+    {
+        Count++;
+    }
+    return Count;
+}
+
+internal void Win32GetFullPath(win32_game_loop *GameState, char *Filename, char* Dest)
+{
+    ConcatStrings(
+        GameState->OnePastLastSlashFilename - GameState->MainEXEFileName,
+        GameState->MainEXEFileName, 
+        StringLength(Filename), Filename,
+        Dest);
+}
+
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
     if (Memory)
@@ -86,14 +135,11 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 inline FILETIME Win32GetLastWriteTime(char *Filename)
 {
     FILETIME ft = {};
-    WIN32_FIND_DATA fd;
-    HANDLE fhdl = FindFirstFileA(Filename, &fd);
-    if (fhdl != INVALID_HANDLE_VALUE)
+    WIN32_FILE_ATTRIBUTE_DATA ad = {};
+    if (GetFileAttributesEx(Filename, GetFileExInfoStandard, &ad))
     {
-        ft = fd.ftLastWriteTime;
-        FindClose(fhdl);
+        ft = ad.ftLastWriteTime;
     }
-
     return ft;
 }
 
@@ -333,7 +379,7 @@ internal void Win32DisplayBufferWindow(
 {
     StretchDIBits(
         DeviceContext,
-        0, 0, Width, Height,
+        0, 0, Buffer->Width, Buffer->Height,
         0, 0, Buffer->Width, Buffer->Height,
         Buffer->Memory,
         &Buffer->Info,
@@ -411,67 +457,75 @@ LRESULT CALLBACK Win32MainWindowCallback(
     return Result;
 }
 
-internal void Win32BeginRecordingInput(win32_game_loop *GameLoop, int InputRecordingIndex)
+internal void GetInputFileLocation(win32_game_loop *GameState, char *Dest)
 {
-    GameLoop->IndexSave = InputRecordingIndex;
+    Win32GetFullPath(GameState, "loop_edit.hmi", Dest);
+}
 
-    char *Filename = "foo.hmi";
-    GameLoop->Journal = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-    DWORD BytesToWrite = (DWORD)GameLoop->JournalSize;
-    Assert(BytesToWrite == GameLoop->JournalSize);
+internal void Win32BeginRecordingInput(win32_game_loop *GameState, int InputRecordingIndex)
+{
+    GameState->IndexSave = InputRecordingIndex;
+
+    char FullFilename[MAX_PATH];
+    GetInputFileLocation(GameState, FullFilename);
+    GameState->Journal = CreateFileA(FullFilename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    
+    DWORD BytesToWrite = (DWORD)GameState->JournalSize;
+    Assert(BytesToWrite == GameState->JournalSize);
     DWORD BytesWriten;
-    WriteFile(GameLoop->Journal, GameLoop->GameMemoryBlock, BytesToWrite, &BytesWriten, 0);
+    WriteFile(GameState->Journal, GameState->GameMemoryBlock, BytesToWrite, &BytesWriten, 0);
 
 }
 
-internal void win32EndRecordingInput(win32_game_loop *GameLoop)
+internal void win32EndRecordingInput(win32_game_loop *GameState)
 {
-    CloseHandle(GameLoop->Journal);
-    GameLoop->IndexSave = 0;
+    CloseHandle(GameState->Journal);
+    GameState->IndexSave = 0;
 }
 
-internal void Win32BeginInputPlayback(win32_game_loop *GameLoop, int InputPlayIndex)
+internal void Win32BeginInputPlayback(win32_game_loop *GameState, int InputPlayIndex)
 {
-    GameLoop->IndexPlay = InputPlayIndex;
+    GameState->IndexPlay = InputPlayIndex;
 
-    char *Filename = "foo.hmi";
-    GameLoop->Tempjournal = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    char FullFilename[MAX_PATH];
+    GetInputFileLocation(GameState, FullFilename);
+    GameState->Tempjournal = CreateFileA(FullFilename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
-    DWORD BytesToRead = (DWORD)GameLoop->JournalSize;
-    Assert(GameLoop->JournalSize == BytesToRead);
+    DWORD BytesToRead = (DWORD)GameState->JournalSize;
+    Assert(GameState->JournalSize == BytesToRead);
     DWORD BytesRead;
-    ReadFile(GameLoop->Tempjournal, GameLoop->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+    ReadFile(GameState->Tempjournal, GameState->GameMemoryBlock, BytesToRead, &BytesRead, 0);
 }
 
-internal void Win32EndInputPlayback(win32_game_loop *GameLoop)
+internal void Win32EndInputPlayback(win32_game_loop *GameState)
 {
-    CloseHandle(GameLoop->Tempjournal);
-    GameLoop->IndexPlay = 0;
+    CloseHandle(GameState->Tempjournal);
+    GameState->IndexPlay = 0;
 }
 
-internal void Win32RecordInput(win32_game_loop *GameLoop, game_input *Input)
+internal void Win32RecordInput(win32_game_loop *GameState, game_input *Input)
 {
     DWORD BytesWriten;
-    WriteFile(GameLoop->Journal, Input, sizeof(*Input), &BytesWriten, 0);
+    WriteFile(GameState->Journal, Input, sizeof(*Input), &BytesWriten, 0);
 }
 
-internal void Win32PlaybackInput(win32_game_loop *GameLoop, game_input *NewInput)
+internal void Win32PlaybackInput(win32_game_loop *GameState, game_input *NewInput)
 {
     DWORD BytesRead;
-    ReadFile(GameLoop->Tempjournal, NewInput, sizeof(*NewInput), &BytesRead, 0);
+    ReadFile(GameState->Tempjournal, NewInput, sizeof(*NewInput), &BytesRead, 0);
     if (BytesRead)
     {
 
     }
     else
     {
-        int PlayIndex = GameLoop->IndexPlay;
-        Win32EndInputPlayback(GameLoop);
-        Win32BeginInputPlayback(GameLoop, PlayIndex);
+        int PlayIndex = GameState->IndexPlay;
+        Win32EndInputPlayback(GameState);
+        Win32BeginInputPlayback(GameState, PlayIndex);
     }
 }
 
-internal void Win32ProcessPendingMessages(game_controller_input *KeyboardController, win32_game_loop *GameLoop)
+internal void Win32ProcessPendingMessages(game_controller_input *KeyboardController, win32_game_loop *GameState)
 {
     MSG Message;
     while (PeekMessageA(&Message, 0, 0, 0, PM_REMOVE))
@@ -517,14 +571,14 @@ internal void Win32ProcessPendingMessages(game_controller_input *KeyboardControl
                 {
                     if (isDown)
                     {
-                        if (GameLoop->IndexSave == 0)
+                        if (GameState->IndexSave == 0)
                         {
-                            Win32BeginRecordingInput(GameLoop, 1);
+                            Win32BeginRecordingInput(GameState, 1);
                         }
                         else 
                         {
-                            win32EndRecordingInput(GameLoop);
-                            Win32BeginInputPlayback(GameLoop, 1);
+                            win32EndRecordingInput(GameState);
+                            Win32BeginInputPlayback(GameState, 1);
                         }
                     }
                 }
@@ -640,55 +694,24 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *BackBuffer,
     }
 }
 
-internal void ConcatStrings(
-    size_t SizeA, char *A,
-    size_t SizeB, char *B,
-    char *Dest
-)
-{
-    for (size_t i = 0; i < SizeA; i++)
-    {
-        *Dest++ = *A++;
-    }
-    
-    for (size_t i = 0; i < SizeB; i++)
-    {
-        *Dest++ = *B++;
-    }
-    *Dest++ = 0;
-}
-
 int CALLBACK WinMain(
     HINSTANCE hInstance,
     HINSTANCE hPrevInstance,
     LPSTR     lpCmdLine,
     int       nShowCmd)
 {
-
-    char EXEFileName[MAX_PATH];
-    DWORD SizeOfFile = GetModuleFileNameA(0, EXEFileName, sizeof(EXEFileName));
-    char *OnePastLastSlash = EXEFileName;
-    for (char *Scan = EXEFileName; *Scan; ++Scan)
-    {
-        if (*Scan == '\\')
-        {
-            OnePastLastSlash = Scan + 1;
-        }
-    }
+    win32_game_loop GameState = {};
+    DWORD SizeOfFile = GetModuleFileNameA(0, GameState.MainEXEFileName, sizeof(GameState.MainEXEFileName));
+    GameState.SizeOfFile = SizeOfFile;
+    Win32GetOnePastLastSlash(&GameState);
 
     char SourceGameCodeFilename[] = "handmade.dll";
     char SourceGameCodeFullPath[MAX_PATH];
-    ConcatStrings(
-        OnePastLastSlash - EXEFileName, EXEFileName, 
-        sizeof(SourceGameCodeFilename)-1, SourceGameCodeFilename,
-        SourceGameCodeFullPath);
+    Win32GetFullPath(&GameState, SourceGameCodeFilename, SourceGameCodeFullPath);
 
     char TempGameCodeFilename[] = "temp_handmade.dll";
     char TempGameCodeFullPath[MAX_PATH];
-    ConcatStrings(
-        OnePastLastSlash - EXEFileName, EXEFileName, 
-        sizeof(TempGameCodeFilename)-1, TempGameCodeFilename,
-        TempGameCodeFullPath);
+    Win32GetFullPath(&GameState, TempGameCodeFilename, TempGameCodeFullPath);
 
     LARGE_INTEGER PerfFreq;
     QueryPerformanceFrequency(&PerfFreq);
@@ -758,7 +781,6 @@ int CALLBACK WinMain(
 // #else
 //             LPVOID BaseAddress = (LPVOID)(Gigabytes((uint64)2) * 1024);
 // #endif
-            win32_game_loop GameLoop = {};
 
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(64);
@@ -767,10 +789,10 @@ int CALLBACK WinMain(
             GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
             GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
-            GameLoop.JournalSize = TotalSize;
-            GameLoop.GameMemoryBlock = VirtualAlloc(0, TotalSize,
+            GameState.JournalSize = TotalSize;
+            GameState.GameMemoryBlock = VirtualAlloc(0, TotalSize,
                                             MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-            GameMemory.PermanentStorage = GameLoop.GameMemoryBlock;
+            GameMemory.PermanentStorage = GameState.GameMemoryBlock;
             GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
             
             if (!Samples || !GameMemory.TransientStorage || !GameMemory.PermanentStorage)
@@ -814,7 +836,7 @@ int CALLBACK WinMain(
                     Zero.Buttons[i].EndedDown = KeyboardController->Buttons[i].EndedDown;
                 }
                 *KeyboardController = Zero;
-                Win32ProcessPendingMessages(KeyboardController, &GameLoop);
+                Win32ProcessPendingMessages(KeyboardController, &GameState);
                 /*note: XUSER_MAX_COUNT-1 keyboard*/
                 for (DWORD ControllerIndex = 0; ControllerIndex < 3; ControllerIndex++)
                 {
@@ -849,14 +871,14 @@ int CALLBACK WinMain(
                 OffscreenBuffer.Pitch = GlobalBackBuffer.Pitch;
                 
 
-                if (GameLoop.IndexSave)
+                if (GameState.IndexSave)
                 {
-                    Win32RecordInput(&GameLoop, &Inp);
+                    Win32RecordInput(&GameState, &Inp);
                 }
 
-                if (GameLoop.IndexPlay)
+                if (GameState.IndexPlay)
                 {
-                    Win32PlaybackInput(&GameLoop, &Inp);
+                    Win32PlaybackInput(&GameState, &Inp);
                 }
 
                 GameCode.UpdateAndRender(&GameMemory, &OffscreenBuffer, &Inp);

@@ -132,7 +132,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
-    local_persist int ToneVolume = 0;
+    local_persist int ToneVolume = 1000;
     if (GameState->ToneHz == 0) 
     {
         GameState->ToneHz = 256;
