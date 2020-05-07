@@ -75,13 +75,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->isInitialized)
     {
-
-        char *Filename = "test.bmp";
-        debug_file_read FileReadResult = Memory->DEBUGPlatformReadEntireFile(Filename);
+        char *Filename = __FILE__;
+        debug_file_read FileReadResult = Memory->DEBUGPlatformReadEntireFile(Thread, Filename);
         if(FileReadResult.ContentSize)
         {
-            Memory->DEBUGPlatformWriteEntireFile(Filename, 300, "asd");
-            Memory->DEBUGPlatformFreeFileMemory(FileReadResult.Content);
+            Memory->DEBUGPlatformWriteEntireFile(Thread, "test.out", FileReadResult.ContentSize, FileReadResult.Content);
+            Memory->DEBUGPlatformFreeFileMemory(Thread, FileReadResult.Content);
         }      
 
         Memory->isInitialized = true;
@@ -127,6 +126,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     RenderGradient(Buffer, GameState->GreenOffset, GameState->BlueOffset);
     RenderPlayer(Buffer, GameState->PlayerX, GameState->PlayerY);
+    RenderPlayer(Buffer, Input->MouseX, Input->MouseY);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

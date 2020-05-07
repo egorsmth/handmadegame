@@ -101,7 +101,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 }
                 else
                 {
-                    DEBUGPlatformFreeFileMemory(Result.Content);
+                    DEBUGPlatformFreeFileMemory(Thread, Result.Content);
                     Result.Content = 0;
                 }
             }
@@ -731,9 +731,6 @@ int CALLBACK WinMain(
     // WindowClass.hIcon = ;
     WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
-    const int MonitorRefreshHz = 60;
-    const int GameUpdateHz = MonitorRefreshHz / 2;
-    real64 TargetSecondsPerFrame = 1.0f / ((real64)GameUpdateHz);
     bool SoundValid = false;
 
     if (RegisterClass(&WindowClass))
@@ -755,14 +752,21 @@ int CALLBACK WinMain(
         if (WIndowHandle)
         {
             HDC DeviceContext = GetDC(WIndowHandle);
+            int MonitorRefreshHz = GetDeviceCaps(DeviceContext, VREFRESH);
+            if (MonitorRefreshHz <= 1)
+            {
+                MonitorRefreshHz = 60;
+            }
+            const real64 GameUpdateHz = MonitorRefreshHz / 2.0f;
+            real64 TargetSecondsPerFrame = 1.0f / ((real64)GameUpdateHz);
+            ReleaseDC(WIndowHandle, DeviceContext);
 
             win32_sound_output SoundOut = {};
             SoundOut.SamplesPerSecond = 48000;
             SoundOut.BytesPerSample = sizeof(int16)*2;
             SoundOut.SecondaryBufferSize = SoundOut.SamplesPerSecond*SoundOut.BytesPerSample;
-            SoundOut.LatencySampleCount = 3*(SoundOut.SamplesPerSecond / GameUpdateHz);
-            SoundOut.SafetyBytes = ((SoundOut.SamplesPerSecond*SoundOut.BytesPerSample) 
-                                    / GameUpdateHz) / 3;
+            SoundOut.SafetyBytes = (int)(((SoundOut.SamplesPerSecond*SoundOut.BytesPerSample) 
+                                    / GameUpdateHz) / 3.0f);
 
             Win32InitDSound(
                 WIndowHandle, 
@@ -808,7 +812,7 @@ int CALLBACK WinMain(
             LARGE_INTEGER LastCounter = Win32GetWallClock();
 
             int DebugTimeMarkersIndex = 0;
-            win32_debug_time_marker DebugTimeMarkers[GameUpdateHz / 2] = {0};
+            win32_debug_time_marker DebugTimeMarkers[30] = {0};
         
             DWORD LastPlayCursor = 0;
             DWORD LastWriteCursor = 0;
@@ -828,6 +832,17 @@ int CALLBACK WinMain(
                     Win32UnloadGameCode(&GameCode);
                     GameCode = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
                 }
+
+                POINT MouseP;
+                GetCursorPos(&MouseP);
+                ScreenToClient(WIndowHandle, &MouseP);
+                Inp.MouseX = MouseP.x;
+                Inp.MouseY = MouseP.y;
+                // Inp.MouseButtons[0] = 100;
+                // Inp.MouseButtons[1] = 100;
+                // Inp.MouseButtons[2] = 100;
+                
+                
 
                 game_controller_input *KeyboardController = &Inp.Controllers[0];
                 game_controller_input Zero = {};
@@ -880,8 +895,9 @@ int CALLBACK WinMain(
                 {
                     Win32PlaybackInput(&GameState, &Inp);
                 }
+                thread_context Thread = {};
 
-                GameCode.UpdateAndRender(&GameMemory, &OffscreenBuffer, &Inp);
+                GameCode.UpdateAndRender(&Thread, &GameMemory, &OffscreenBuffer, &Inp);
 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
@@ -897,8 +913,8 @@ int CALLBACK WinMain(
                                 SoundOut.SecondaryBufferSize;
 
                     DWORD ExpectedBytesPerFrame = 
-                                    (SoundOut.SamplesPerSecond * SoundOut.BytesPerSample)
-                                    / GameUpdateHz;
+                                    (int)((real32)(SoundOut.SamplesPerSecond * SoundOut.BytesPerSample)
+                                    / GameUpdateHz);
                     
                     DWORD ExpectedFrameBoudary = PlayCursor + ExpectedBytesPerFrame;
                     DWORD SafeWriteCursoe = WriteCursor;
@@ -935,7 +951,10 @@ int CALLBACK WinMain(
                     SoundBuffer.SamplesPerSecond = SoundOut.SamplesPerSecond;
                     SoundBuffer.SampleCount = BytesToWrite / SoundOut.BytesPerSample;
                     SoundBuffer.Samples = Samples;
-                    GameCode.GetSoundSamples(&GameMemory, &SoundBuffer, &Inp);
+                    if (GameCode.GetSoundSamples)
+                    {
+                        GameCode.GetSoundSamples(&Thread, &GameMemory, &SoundBuffer, &Inp);
+                    }
 
 #if INTERNAL_BUILD
                     DWORD PlayCursor;
