@@ -896,7 +896,7 @@ int CALLBACK WinMain(
                     Win32PlaybackInput(&GameState, &Inp);
                 }
                 thread_context Thread = {};
-
+                Inp.SecondsToAdvance = TargetSecondsPerFrame;
                 GameCode.UpdateAndRender(&Thread, &GameMemory, &OffscreenBuffer, &Inp);
 
                 DWORD PlayCursor;

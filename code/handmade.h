@@ -109,6 +109,8 @@ struct game_input
 {
     game_button_state MouseButtons[5];
     int32 MouseX, MouseY, MouseZ;
+
+    real64 SecondsToAdvance;
     
     game_controller_input Controllers[4];
 };

@@ -124,7 +124,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
     
     
-    RenderGradient(Buffer, GameState->GreenOffset, GameState->BlueOffset);
     RenderPlayer(Buffer, GameState->PlayerX, GameState->PlayerY);
     RenderPlayer(Buffer, Input->MouseX, Input->MouseY);
 }
