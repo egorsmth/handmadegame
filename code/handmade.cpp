@@ -1,25 +1,52 @@
 #include "handmade.h"
 
-internal void RenderPlayer(game_offscreen_buffer *Buffer, int PlayerX, int PlayerY)
+internal int32 RoundReal32toInt32(real32 Real32)
 {
-    if (PlayerX < 0 || PlayerX + 10 > Buffer->Width)
+    int32 Result = (int32)(Real32 + 0.5f);
+    return Result;
+}
+
+internal void DrawRectangle(game_offscreen_buffer *Buffer,
+                            real32 RealMinX, real32 RealMinY,
+                            real32 RealMaxX, real32 RealMaxY)
+{
+    int32 MinX = RoundReal32toInt32(RealMinX);
+    int32 MaxX = RoundReal32toInt32(RealMaxX);
+    int32 MinY = RoundReal32toInt32(RealMinY);
+    int32 MaxY = RoundReal32toInt32(RealMaxY);
+    
+    if (MinX < 0)
     {
-        return;
+        MinX = 0;
     }
 
-    if (PlayerY < 0 || PlayerY + 10 > Buffer->Height)
+    if (MinY < 0)
     {
-        return;
+        MinY = 0;
     }
 
-    uint32 *Pixel = (uint32 *)Buffer->Memory + PlayerX + PlayerY * Buffer->Width;
-    for (int y = 0; y < 10; y++)
+    if (MaxX > Buffer->Width)
     {
-        for (int x = 0; x < 10; x++)
+        MaxX = Buffer->Width;
+    }
+
+    if (MaxY > Buffer->Height)
+    {
+        MaxY = Buffer->Height;
+    }
+
+    uint8 *Row = ((uint8 *)Buffer->Memory + 
+                    MinX * Buffer->BytesPerPixel + 
+                    MinY * Buffer->Pitch);
+    uint32 Color = 0xFFFFFF;
+    for (int32 y = MinY; y < MaxY; y++)
+    {
+        uint32 *Pixel = (uint32 *)Row;
+        for (int32 x = MinX; x < MaxX; x++)
         {
-            *Pixel++ = 0xFFFFFF;
+            *Pixel++ = Color;
         }
-        Pixel += (Buffer->Width - 10);
+        Row += Buffer->Pitch;
     }
 }
 
@@ -34,7 +61,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     game_controller_input Input0 = Input->Controllers[0];
-
+    DrawRectangle(Buffer, 
+                (real32)Input->MouseX, (real32)Input->MouseY, 
+                (real32)Input->MouseX + 10, (real32)Input->MouseY + 10);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

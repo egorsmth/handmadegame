@@ -723,7 +723,7 @@ int CALLBACK WinMain(
     Win32LoadXInput();
     WNDCLASSA WindowClass = {};
 
-    Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
+    Win32ResizeDIBSection(&GlobalBackBuffer, 960, 540);
 
     WindowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
@@ -884,6 +884,7 @@ int CALLBACK WinMain(
                 OffscreenBuffer.Width = GlobalBackBuffer.Width;
                 OffscreenBuffer.Height = GlobalBackBuffer.Height;
                 OffscreenBuffer.Pitch = GlobalBackBuffer.Pitch;
+                OffscreenBuffer.BytesPerPixel = GlobalBackBuffer.BytesPerPixel;
                 
 
                 if (GameState.IndexSave)
