@@ -138,14 +138,7 @@ GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 
 struct game_state
 {
-    int ToneHz;
-    int GreenOffset;
-    int BlueOffset;
-    real32 tSine;
 
-    int PlayerX;
-    int PlayerY;
-    real32 PlayerTimer;
 };
 
 #define HANDMADE_H
