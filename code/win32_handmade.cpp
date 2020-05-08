@@ -1014,36 +1014,12 @@ int CALLBACK WinMain(
                 LastCounter = EndCounter;
 
                 win32_window_dims Dimensions = Win32GetWindowDims(WIndowHandle);
-#if INTERNAL_BUILD
-                Win32DebugSyncDisplay(&GlobalBackBuffer,
-                                    ArrayCount(DebugTimeMarkers), 
-                                    DebugTimeMarkers,
-                                    DebugTimeMarkersIndex - 1,
-                                    &SoundOut, 
-                                    TargetSecondsPerFrame);
-#endif
+
                 Win32DisplayBufferWindow(
                     &GlobalBackBuffer,
                     DeviceContext,
                     Dimensions.Width, Dimensions.Height);
                 // ReleaseDC(WIndowHandle, DeviceContext);
-                
-#if INTERNAL_BUILD
-                {
-                    DWORD PlayCursor;
-                    DWORD WriteCursor;
-                    if (GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
-                    {
-                        win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkersIndex++];
-                        if (DebugTimeMarkersIndex >= ArrayCount(DebugTimeMarkers))
-                        {
-                            DebugTimeMarkersIndex = 0;
-                        }
-                        Marker->PlayCursor = PlayCursor;
-                        Marker->WriteCursor = WriteCursor;
-                    }
-                }
-#endif
                 
  //profiling
  #if 1
