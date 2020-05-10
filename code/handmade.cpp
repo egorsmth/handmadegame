@@ -77,7 +77,7 @@ bool CanMove(world *World,
         if (WorldTileX > 0)
         {
             WorldTileX--;
-            X = World->TileWidth*World->TileMapCountX + X;
+            X = World->TileSideInPixels*World->TileMapCountX + X;
         }
         else
         {
@@ -85,12 +85,12 @@ bool CanMove(world *World,
         }
     }
 
-    if (Result && X >= World->TileWidth*World->TileMapCountX)
+    if (Result && X >= World->TileSideInPixels*World->TileMapCountX)
     {    
         if (WorldTileX < World->CountX - 1)
         {
             WorldTileX++;
-            X = X - World->TileWidth*World->TileMapCountX;
+            X = X - World->TileSideInPixels*World->TileMapCountX;
         }
         else
         {
@@ -103,7 +103,7 @@ bool CanMove(world *World,
         if (WorldTileY > 0)
         {
             WorldTileY--;
-            Y = World->TileHeight * World->TileMapCountY + Y;
+            Y = World->TileSideInPixels * World->TileMapCountY + Y;
         }
         else
         {
@@ -111,12 +111,12 @@ bool CanMove(world *World,
         }
     }
 
-    if (Result && Y >= World->TileHeight * World->TileMapCountY)
+    if (Result && Y >= World->TileSideInPixels * World->TileMapCountY)
     {    
         if (WorldTileY < World->CountY - 1)
         {
             WorldTileY++;
-            Y = Y - World->TileHeight * World->TileMapCountY;
+            Y = Y - World->TileSideInPixels * World->TileMapCountY;
         }
         else
         {
@@ -127,8 +127,8 @@ bool CanMove(world *World,
     if (Result)
     {
         tile_map *TileMap = GetTileMap(World, WorldTileX, WorldTileY);
-        int32 Col = (int32)(X / World->TileWidth);
-        int32 Row = (int32)(Y / World->TileHeight);
+        int32 Col = (int32)(X / World->TileSideInPixels);
+        int32 Row = (int32)(Y / World->TileSideInPixels);
  
         uint32 Tile = TileMap->Map[Row*World->TileMapCountX + Col];
         return !Tile;
@@ -145,7 +145,7 @@ bool Advance(world *World, world_coordibate *Coord)
         if (Coord->WorldTileX > 0)
         {
             Coord->WorldTileX--;
-            Coord->X = World->TileWidth*World->TileMapCountX + Coord->X;
+            Coord->X = World->TileSideInPixels*World->TileMapCountX + Coord->X;
         }
         else
         {
@@ -153,12 +153,12 @@ bool Advance(world *World, world_coordibate *Coord)
         }
     }
 
-    if (Result && Coord->X >= World->TileWidth*World->TileMapCountX)
+    if (Result && Coord->X >= World->TileSideInPixels*World->TileMapCountX)
     {    
         if (Coord->WorldTileX < World->CountX - 1)
         {
             Coord->WorldTileX++;
-            Coord->X = Coord->X - World->TileWidth*World->TileMapCountX;
+            Coord->X = Coord->X - World->TileSideInPixels*World->TileMapCountX;
         }
         else
         {
@@ -171,7 +171,7 @@ bool Advance(world *World, world_coordibate *Coord)
         if (Coord->WorldTileY > 0)
         {
             Coord->WorldTileY--;
-            Coord->Y = World->TileHeight * World->TileMapCountY + Coord->Y;
+            Coord->Y = World->TileSideInPixels * World->TileMapCountY + Coord->Y;
         }
         else
         {
@@ -179,12 +179,12 @@ bool Advance(world *World, world_coordibate *Coord)
         }
     }
 
-    if (Result && Coord->Y >= World->TileHeight * World->TileMapCountY)
+    if (Result && Coord->Y >= World->TileSideInPixels * World->TileMapCountY)
     {    
         if (Coord->WorldTileY < World->CountY - 1)
         {
             Coord->WorldTileY++;
-            Coord->Y = Coord->Y - World->TileHeight * World->TileMapCountY;
+            Coord->Y = Coord->Y - World->TileSideInPixels * World->TileMapCountY;
         }
         else
         {
@@ -194,6 +194,11 @@ bool Advance(world *World, world_coordibate *Coord)
 
     return Result;
 }
+
+#define TILE_MAP_COUNT_X 16
+#define TILE_MAP_COUNT_Y 9
+#define TILES_COUNT_X 2
+#define TILES_COUNT_Y 2
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
@@ -215,12 +220,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             1.0f, 0.0f, 1.0f);
 
     world World = {};
-    World.TileMapCountX = 16;
-    World.TileMapCountY = 9;
-    World.TileWidth = Buffer->Width / World.TileMapCountX;
-    World.TileHeight = Buffer->Height / World.TileMapCountY;
+    World.TileSideInMeters = 1.4f;
+    World.TileSideInPixels = 60;
+    World.TileMapCountX = TILE_MAP_COUNT_X;
+    World.TileMapCountY = TILE_MAP_COUNT_Y;
 
-    uint32 Tiles00[9][16] = 
+    uint32 Tiles00[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
     {
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
@@ -235,7 +240,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
     };
 
-    uint32 Tiles01[9][16] = 
+    uint32 Tiles01[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
     {
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
@@ -250,7 +255,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
     };
 
-    uint32 Tiles10[9][16] = 
+    uint32 Tiles10[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
     {
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
@@ -265,7 +270,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
     };
 
-    uint32 Tiles11[9][16] = 
+    uint32 Tiles11[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
     {
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
@@ -279,24 +284,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
     };
-    tile_map Tiles[2][2];
+    tile_map Tiles[TILES_COUNT_Y][TILES_COUNT_X];
     Tiles[0][0].Map = (uint32 *)Tiles00;
     Tiles[0][1].Map = (uint32 *)Tiles01;
     Tiles[1][0].Map = (uint32 *)Tiles10;
     Tiles[1][1].Map = (uint32 *)Tiles11;
 
     World.TileMaps = (tile_map *)Tiles;
-    World.CountX = 2;
-    World.CountY = 2;
+    World.CountX = TILES_COUNT_X;
+    World.CountY = TILES_COUNT_Y;
     
 
     game_controller_input Input0 = Input->Controllers[0];
     real32 PlayerR = 1.0f;
     real32 PlayerG = 1.0f;
     real32 PlayerB = 0.0f;
-    real32 PlayerWidth = 0.5f * (real32)World.TileWidth;
-    real32 PlayerHeight = (real32)World.TileHeight;
-    real32 PlayerHeadOffset = 0.3f * (real32)World.TileHeight;
+    real32 PlayerWidth = 0.5f * (real32)World.TileSideInPixels;
+    real32 PlayerHeight = (real32)World.TileSideInPixels;
+    real32 PlayerHeadOffset = 0.3f * (real32)World.TileSideInPixels;
 
     real32 dPlayerX = 0.0f;
     real32 dPlayerY = 0.0f;
@@ -330,16 +335,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (
             CanMove(&World, NewPlayerX,                          
-                    (real32)(NewPlayerY + 0.5f * World.TileHeight), 
+                    (real32)(NewPlayerY + 0.5f * World.TileSideInPixels), 
                     GameState->PlayerWorldX, GameState->PlayerWorldY) &&
-            CanMove(&World, (real32)(NewPlayerX+ 0.5f * World.TileWidth), 
-                    (real32)(NewPlayerY + 0.5 * World.TileHeight),
+            CanMove(&World, (real32)(NewPlayerX+ 0.5f * World.TileSideInPixels), 
+                    (real32)(NewPlayerY + 0.5 * World.TileSideInPixels),
                     GameState->PlayerWorldX, GameState->PlayerWorldY) &&
             CanMove(&World, NewPlayerX,                          
-                    (real32)(NewPlayerY + World.TileHeight),
+                    (real32)(NewPlayerY + World.TileSideInPixels),
                     GameState->PlayerWorldX, GameState->PlayerWorldY) &&
-            CanMove(&World, (real32)(NewPlayerX + 0.5f * World.TileWidth), 
-                    (real32)(NewPlayerY + World.TileHeight),
+            CanMove(&World, (real32)(NewPlayerX + 0.5f * World.TileSideInPixels), 
+                    (real32)(NewPlayerY + World.TileSideInPixels),
                     GameState->PlayerWorldX, GameState->PlayerWorldY))
         {
             world_coordibate Coord = {};
@@ -366,8 +371,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             
             DrawRectangle(Buffer, 
-                (real32)Col * World.TileWidth, (real32)Row * World.TileHeight, 
-                (real32)(Col +1) * World.TileWidth , (real32)(Row+1) * World.TileHeight,
+                (real32)Col * World.TileSideInPixels, (real32)Row * World.TileSideInPixels, 
+                (real32)(Col +1) * World.TileSideInPixels , (real32)(Row+1) * World.TileSideInPixels,
                 0.0f, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
         }
     }
