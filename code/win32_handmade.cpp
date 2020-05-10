@@ -694,6 +694,9 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *BackBuffer,
     }
 }
 
+#define WINDOW_WIDTH 960
+#define WINDOW_HEIGHT 540
+
 int CALLBACK WinMain(
     HINSTANCE hInstance,
     HINSTANCE hPrevInstance,
@@ -723,7 +726,7 @@ int CALLBACK WinMain(
     Win32LoadXInput();
     WNDCLASSA WindowClass = {};
 
-    Win32ResizeDIBSection(&GlobalBackBuffer, 960, 540);
+    Win32ResizeDIBSection(&GlobalBackBuffer, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     WindowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
@@ -742,8 +745,8 @@ int CALLBACK WinMain(
             WS_OVERLAPPEDWINDOW|WS_VISIBLE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
+            WINDOW_WIDTH+40,
+            WINDOW_HEIGHT+40,
             0,
             0,
             hInstance,

@@ -139,7 +139,8 @@ GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 
 struct game_state
 {
-
+    real32 PlayerX;
+    real32 PlayerY;
 };
 
 #define HANDMADE_H
