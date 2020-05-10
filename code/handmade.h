@@ -137,8 +137,41 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 
+struct tile_map
+{
+    uint32 *Map;
+};
+
+struct world
+{
+    int32 CountX;
+    int32 CountY;
+
+    int32 TileWidth;
+    int32 TileHeight;
+
+    int32 TileMapCountX;
+    int32 TileMapCountY;
+    tile_map *TileMaps;
+};
+
+struct world_coordibate
+{
+    int32 WorldTileX;
+    int32 WorldTileY;
+
+    int32 TileX;
+    int32 TileY;
+
+    real32 X;
+    real32 Y;
+};
+
 struct game_state
 {
+    int32 PlayerWorldX;
+    int32 PlayerWorldY;
+    
     real32 PlayerX;
     real32 PlayerY;
 };
