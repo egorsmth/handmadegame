@@ -1,9 +1,49 @@
 #include "handmade.h"
+#include "corecrt_math.h"
 
 internal int32 RoundReal32toInt32(real32 Real32)
 {
     int32 Result = (int32)(Real32 + 0.5f);
     return Result;
+}
+
+internal void DrawPoint(game_offscreen_buffer *Buffer,
+                        real32 RealX, real32 RealY,
+                        real32 R, real32 G, real32 B)
+{
+    int32 X = RoundReal32toInt32(RealX);
+    int32 Y = RoundReal32toInt32(RealY);
+
+    if (X < 0)
+    {
+        X = 0;
+    }
+
+    if (Y < 0)
+    {
+        Y = 0;
+    }
+    if (X > Buffer->Width)
+    {
+        X = Buffer->Width;
+    }
+
+    if (Y > Buffer->Height)
+    {
+        Y = Buffer->Height;
+    }
+
+    uint32 Color = (uint32)(
+        RoundReal32toInt32(R * 255.0f) << 16 |
+        RoundReal32toInt32(G * 255.0f) << 8 |
+        RoundReal32toInt32(B * 255.0f)
+    );
+    uint8 *Row = ((uint8 *)Buffer->Memory + 
+                    X * Buffer->BytesPerPixel + 
+                    Y * Buffer->Pitch);
+
+    uint32 *Pixel = (uint32 *)Row;
+    *Pixel = Color;
 }
 
 internal void DrawRectangle(game_offscreen_buffer *Buffer,
@@ -61,138 +101,41 @@ internal void DrawRectangle(game_offscreen_buffer *Buffer,
     }
 }
 
+inline void RecanonicalazeCoord(int32 MapDim, int32 TileDim, int32 *TileMap, int32 *Tile, real32 *TileRel)
+{
+    int32 Offset = (int32)floorf(*TileRel / (real32)TileDim);
+    *Tile += Offset;
+    *TileRel -= TileDim * Offset;
+    if (*Tile < 0)
+    {
+        *Tile = MapDim + *Tile;
+        --*TileMap;
+    }
+
+    if (*Tile >= MapDim)
+    {
+        *Tile = MapDim - *Tile;
+        ++*TileMap;
+    }
+}
+
+inline void RecanonicalizePostion(world *World, canonical_postition *Pos)
+{
+    RecanonicalazeCoord(World->TileMapCountX, World->TileSideInPixels, &Pos->TileMapX, &Pos->TileX, &Pos->RelTileX);
+    RecanonicalazeCoord(World->TileMapCountY, World->TileSideInPixels, &Pos->TileMapY, &Pos->TileY, &Pos->RelTileY);
+}
+
 inline tile_map *GetTileMap(world *World, int32 X, int32 Y)
 {
     tile_map *TileMap = &World->TileMaps[Y * World->CountX + X];
     return TileMap;
 }
 
-bool CanMove(world *World, 
-            real32 X, real32 Y, 
-            int32 WorldTileX, int32 WorldTileY)
+bool CanMove(world *World, canonical_postition *Pos)
 {
-    bool Result = true;
-    if (Result && X <= 0)
-    {    
-        if (WorldTileX > 0)
-        {
-            WorldTileX--;
-            X = World->TileSideInPixels*World->TileMapCountX + X;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && X >= World->TileSideInPixels*World->TileMapCountX)
-    {    
-        if (WorldTileX < World->CountX - 1)
-        {
-            WorldTileX++;
-            X = X - World->TileSideInPixels*World->TileMapCountX;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && Y <= 0)
-    {    
-        if (WorldTileY > 0)
-        {
-            WorldTileY--;
-            Y = World->TileSideInPixels * World->TileMapCountY + Y;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && Y >= World->TileSideInPixels * World->TileMapCountY)
-    {    
-        if (WorldTileY < World->CountY - 1)
-        {
-            WorldTileY++;
-            Y = Y - World->TileSideInPixels * World->TileMapCountY;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result)
-    {
-        tile_map *TileMap = GetTileMap(World, WorldTileX, WorldTileY);
-        int32 Col = (int32)(X / World->TileSideInPixels);
-        int32 Row = (int32)(Y / World->TileSideInPixels);
- 
-        uint32 Tile = TileMap->Map[Row*World->TileMapCountX + Col];
-        return !Tile;
-    }
-    return Result;
-    
-}
-
-bool Advance(world *World, world_coordibate *Coord)
-{
-    bool Result = true;
-   if (Result && Coord->X <= 0)
-    {    
-        if (Coord->WorldTileX > 0)
-        {
-            Coord->WorldTileX--;
-            Coord->X = World->TileSideInPixels*World->TileMapCountX + Coord->X;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && Coord->X >= World->TileSideInPixels*World->TileMapCountX)
-    {    
-        if (Coord->WorldTileX < World->CountX - 1)
-        {
-            Coord->WorldTileX++;
-            Coord->X = Coord->X - World->TileSideInPixels*World->TileMapCountX;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && Coord->Y <= 0)
-    {    
-        if (Coord->WorldTileY > 0)
-        {
-            Coord->WorldTileY--;
-            Coord->Y = World->TileSideInPixels * World->TileMapCountY + Coord->Y;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    if (Result && Coord->Y >= World->TileSideInPixels * World->TileMapCountY)
-    {    
-        if (Coord->WorldTileY < World->CountY - 1)
-        {
-            Coord->WorldTileY++;
-            Coord->Y = Coord->Y - World->TileSideInPixels * World->TileMapCountY;
-        }
-        else
-        {
-            Result = false;
-        }
-    }
-
-    return Result;
+    tile_map *TileMap = GetTileMap(World, Pos->TileMapX, Pos->TileMapY); 
+    uint32 Tile = TileMap->Map[Pos->TileY *World->TileMapCountX + Pos->TileX];
+    return !Tile;
 }
 
 #define TILE_MAP_COUNT_X 16
@@ -208,10 +151,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if (!Memory->isInitialized)
     {
         Memory->isInitialized = true;
-        GameState->PlayerX = 150;
-        GameState->PlayerY = 50;
-        GameState->PlayerWorldX = 0;
-        GameState->PlayerWorldY = 0;
+        GameState->PlayerP.RelTileX = 3;
+        GameState->PlayerP.RelTileY = 3;
+        GameState->PlayerP.TileX = 3;
+        GameState->PlayerP.TileY = 3;
+        GameState->PlayerP.TileMapX = 0;
+        GameState->PlayerP.TileMapY = 0;
     }
     
     DrawRectangle(Buffer, 
@@ -222,6 +167,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     world World = {};
     World.TileSideInMeters = 1.4f;
     World.TileSideInPixels = 60;
+    World.PixPerMeter = (int32)((real32)World.TileSideInPixels / World.TileSideInMeters);
     World.TileMapCountX = TILE_MAP_COUNT_X;
     World.TileMapCountY = TILE_MAP_COUNT_Y;
 
@@ -305,10 +251,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     real32 dPlayerX = 0.0f;
     real32 dPlayerY = 0.0f;
-    real32 Delta = 5.0f;
+    real32 DeltaMPerSec = 5.0f;
+    real32 Delta = (real32)(DeltaMPerSec * Input->SecondsToAdvance * World.PixPerMeter);
 
-    real32 NewPlayerX = GameState->PlayerX;
-    real32 NewPlayerY = GameState->PlayerY;
+    real32 NewPlayerX = GameState->PlayerP.RelTileX;
+    real32 NewPlayerY = GameState->PlayerP.RelTileY;
     if (Input0.Up.EndedDown)
     {
         dPlayerY = -Delta;
@@ -329,57 +276,56 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     NewPlayerX += dPlayerX;
     NewPlayerY += dPlayerY;
 
-    if (NewPlayerX != GameState->PlayerX || NewPlayerY != GameState->PlayerY)
+    if (NewPlayerX != GameState->PlayerP.RelTileX || NewPlayerY != GameState->PlayerP.RelTileY)
     {
-        
-
+        canonical_postition BottomLeft = GameState->PlayerP;
+        BottomLeft.RelTileX = NewPlayerX;
+        BottomLeft.RelTileY = NewPlayerY + PlayerHeight;
+        canonical_postition BottomRight = BottomLeft;
+        BottomRight.RelTileX += PlayerWidth;
+        RecanonicalizePostion(&World, &BottomLeft);
+        RecanonicalizePostion(&World, &BottomRight);
         if (
-            CanMove(&World, NewPlayerX,                          
-                    (real32)(NewPlayerY + 0.5f * World.TileSideInPixels), 
-                    GameState->PlayerWorldX, GameState->PlayerWorldY) &&
-            CanMove(&World, (real32)(NewPlayerX+ 0.5f * World.TileSideInPixels), 
-                    (real32)(NewPlayerY + 0.5 * World.TileSideInPixels),
-                    GameState->PlayerWorldX, GameState->PlayerWorldY) &&
-            CanMove(&World, NewPlayerX,                          
-                    (real32)(NewPlayerY + World.TileSideInPixels),
-                    GameState->PlayerWorldX, GameState->PlayerWorldY) &&
-            CanMove(&World, (real32)(NewPlayerX + 0.5f * World.TileSideInPixels), 
-                    (real32)(NewPlayerY + World.TileSideInPixels),
-                    GameState->PlayerWorldX, GameState->PlayerWorldY))
+            CanMove(&World, &BottomLeft) &&
+            CanMove(&World, &BottomRight))
         {
-            world_coordibate Coord = {};
-            Coord.X = NewPlayerX;
-            Coord.Y = NewPlayerY;
-            Coord.WorldTileX = GameState->PlayerWorldX;
-            Coord.WorldTileY = GameState->PlayerWorldY;
+            canonical_postition TopRight = GameState->PlayerP;
+            TopRight.RelTileX = NewPlayerX;
+            TopRight.RelTileY = NewPlayerY;
+            RecanonicalizePostion(&World, &TopRight);
 
-            if (Advance(&World, &Coord))
-            {
-                GameState->PlayerY = Coord.Y;
-                GameState->PlayerX = Coord.X;
-                GameState->PlayerWorldX = Coord.WorldTileX;
-                GameState->PlayerWorldY = Coord.WorldTileY;
-            }
+            GameState->PlayerP.TileX    = TopRight.TileX;
+            GameState->PlayerP.TileY    = TopRight.TileY;
+            GameState->PlayerP.TileMapX = TopRight.TileMapX;
+            GameState->PlayerP.TileMapY = TopRight.TileMapY;
+            GameState->PlayerP.RelTileX = TopRight.RelTileX;
+            GameState->PlayerP.RelTileY = TopRight.RelTileY;
         }
-        
     }
     
-    tile_map *TileMap = GetTileMap(&World, GameState->PlayerWorldX, GameState->PlayerWorldY);
+    tile_map *TileMap = GetTileMap(&World, GameState->PlayerP.TileMapX, GameState->PlayerP.TileMapY);
     for (int Row = 0; Row < World.TileMapCountY; Row++)
     {
         for (int Col = 0; Col < World.TileMapCountX; Col++)
         {
-            
+            real32 Red = 0.0f;
+            if (Row == GameState->PlayerP.TileY && Col == GameState->PlayerP.TileX)
+            {
+                Red = 1.0f;
+            }
             DrawRectangle(Buffer, 
                 (real32)Col * World.TileSideInPixels, (real32)Row * World.TileSideInPixels, 
-                (real32)(Col +1) * World.TileSideInPixels , (real32)(Row+1) * World.TileSideInPixels,
-                0.0f, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
+                (real32)(Col + 1) * World.TileSideInPixels , (real32)(Row + 1) * World.TileSideInPixels,
+                Red, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
         }
     }
 
-    DrawRectangle(Buffer, GameState->PlayerX, GameState->PlayerY, 
-                GameState->PlayerX + PlayerWidth, GameState->PlayerY + PlayerHeight,
+    real32 WorldTopLeftX = GameState->PlayerP.TileX * World.TileSideInPixels + GameState->PlayerP.RelTileX;
+    real32 WorldTopLeftY = GameState->PlayerP.TileY * World.TileSideInPixels + GameState->PlayerP.RelTileY;
+    DrawRectangle(Buffer, WorldTopLeftX, WorldTopLeftY, 
+                WorldTopLeftX + PlayerWidth, WorldTopLeftY + PlayerHeight,
                 PlayerR, PlayerG, PlayerB);
+    DrawPoint(Buffer, WorldTopLeftX, WorldTopLeftY, 1.0f, 0.0f, 0.0f);
 
     DrawRectangle(Buffer, 
                 (real32)Input->MouseX, (real32)Input->MouseY, 
