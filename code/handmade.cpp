@@ -127,14 +127,24 @@ inline void RecanonicalizePostion(world *World, canonical_postition *Pos)
 
 inline tile_map *GetTileMap(world *World, int32 X, int32 Y)
 {
-    tile_map *TileMap = &World->TileMaps[Y * World->CountX + X];
+    tile_map *TileMap = &World->TileMaps[
+        (World->CountY - 1 - Y) * World->CountX + X
+    ];
     return TileMap;
+}
+
+inline uint32 GetTileValue(world *World, tile_map *TileMap, int32 X, int32 Y)
+{
+    uint32 Value = TileMap->Map[
+        (World->TileMapCountY - 1 - Y) * World->TileMapCountX + X
+    ];
+    return Value;
 }
 
 bool CanMove(world *World, canonical_postition *Pos)
 {
     tile_map *TileMap = GetTileMap(World, Pos->TileMapX, Pos->TileMapY); 
-    uint32 Tile = TileMap->Map[Pos->TileY *World->TileMapCountX + Pos->TileX];
+    uint32 Tile = GetTileValue(World, TileMap, Pos->TileX, Pos->TileY);
     return !Tile;
 }
 
@@ -303,7 +313,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
-    tile_map *TileMap = GetTileMap(&World, GameState->PlayerP.TileMapX, GameState->PlayerP.TileMapY);
+    tile_map *TileMap = GetTileMap(&World, 
+        GameState->PlayerP.TileMapX,
+        GameState->PlayerP.TileMapY);
     for (int Row = 0; Row < World.TileMapCountY; Row++)
     {
         for (int Col = 0; Col < World.TileMapCountX; Col++)
@@ -313,10 +325,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 Red = 1.0f;
             }
+            real32 Green = (real32)GetTileValue(&World, TileMap, Col, Row);
             DrawRectangle(Buffer, 
                 (real32)Col * World.TileSideInPixels, (real32)Row * World.TileSideInPixels, 
-                (real32)(Col + 1) * World.TileSideInPixels , (real32)(Row + 1) * World.TileSideInPixels,
-                Red, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
+                (real32)(Col + 1) * World.TileSideInPixels, (real32)(Row + 1) * World.TileSideInPixels,
+                Red, Green, 1.0f);
         }
     }
 
