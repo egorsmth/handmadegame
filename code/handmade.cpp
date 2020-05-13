@@ -114,7 +114,7 @@ inline void RecanonicalazeCoord(int32 MapDim, int32 TileDim, int32 *TileMap, int
 
     if (*Tile >= MapDim)
     {
-        *Tile = MapDim - *Tile;
+        *Tile = *Tile - MapDim;
         ++*TileMap;
     }
 }
