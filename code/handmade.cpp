@@ -43,6 +43,9 @@ internal void DrawPoint(game_offscreen_buffer *Buffer,
                     Y * Buffer->Pitch);
 
     uint32 *Pixel = (uint32 *)Row;
+    *Pixel++ = Color;
+    *Pixel++ = Color;
+    *Pixel++ = Color;
     *Pixel = Color;
 }
 
@@ -101,9 +104,9 @@ internal void DrawRectangle(game_offscreen_buffer *Buffer,
     }
 }
 
-inline void RecanonicalazeCoord(int32 MapDim, int32 TileDim, int32 *TileMap, int32 *Tile, real32 *TileRel)
+inline void RecanonicalazeCoord(int32 MapDim, real32 TileDim, int32 *TileMap, int32 *Tile, real32 *TileRel)
 {
-    int32 Offset = (int32)floorf(*TileRel / (real32)TileDim);
+    int32 Offset = (int32)floorf(*TileRel / TileDim);
     *Tile += Offset;
     *TileRel -= TileDim * Offset;
     if (*Tile < 0)
@@ -121,8 +124,10 @@ inline void RecanonicalazeCoord(int32 MapDim, int32 TileDim, int32 *TileMap, int
 
 inline void RecanonicalizePostion(world *World, canonical_postition *Pos)
 {
-    RecanonicalazeCoord(World->TileMapCountX, World->TileSideInPixels, &Pos->TileMapX, &Pos->TileX, &Pos->RelTileX);
-    RecanonicalazeCoord(World->TileMapCountY, World->TileSideInPixels, &Pos->TileMapY, &Pos->TileY, &Pos->RelTileY);
+    RecanonicalazeCoord(World->TileMapCountX, World->TileSideInMeters, 
+        &Pos->TileMapX, &Pos->TileX, &Pos->RelTileX);
+    RecanonicalazeCoord(World->TileMapCountY, World->TileSideInMeters, 
+        &Pos->TileMapY, &Pos->TileY, &Pos->RelTileY);
 }
 
 inline tile_map *GetTileMap(world *World, int32 X, int32 Y)
@@ -151,8 +156,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if (!Memory->isInitialized)
     {
         Memory->isInitialized = true;
-        GameState->PlayerP.RelTileX = 3;
-        GameState->PlayerP.RelTileY = 3;
+        GameState->PlayerP.RelTileX = 0.3f;
+        GameState->PlayerP.RelTileY = 0.3f;
         GameState->PlayerP.TileX = 3;
         GameState->PlayerP.TileY = 3;
         GameState->PlayerP.TileMapX = 0;
@@ -167,7 +172,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     world World = {};
     World.TileSideInMeters = 1.4f;
     World.TileSideInPixels = 60;
-    World.PixPerMeter = (int32)((real32)World.TileSideInPixels / World.TileSideInMeters);
+    World.PixPerMeter = RoundReal32toInt32((real32)World.TileSideInPixels / World.TileSideInMeters);
     World.TileMapCountX = TILE_MAP_COUNT_X;
     World.TileMapCountY = TILE_MAP_COUNT_Y;
 
@@ -245,14 +250,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 PlayerR = 1.0f;
     real32 PlayerG = 1.0f;
     real32 PlayerB = 0.0f;
-    real32 PlayerWidth = 0.5f * (real32)World.TileSideInPixels;
-    real32 PlayerHeight = (real32)World.TileSideInPixels;
-    real32 PlayerHeadOffset = 0.3f * (real32)World.TileSideInPixels;
+    real32 PlayerWidth = 0.5f * (real32)World.TileSideInMeters;
+    real32 PlayerHeight = (real32)World.TileSideInMeters;
+    real32 PlayerHeadOffset = 0.3f * (real32)World.TileSideInMeters;
 
     real32 dPlayerX = 0.0f;
     real32 dPlayerY = 0.0f;
     real32 DeltaMPerSec = 5.0f;
-    real32 Delta = (real32)(DeltaMPerSec * Input->SecondsToAdvance * World.PixPerMeter);
+    real32 Delta = (real32)(DeltaMPerSec * Input->SecondsToAdvance);
 
     real32 NewPlayerX = GameState->PlayerP.RelTileX;
     real32 NewPlayerY = GameState->PlayerP.RelTileY;
@@ -320,13 +325,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    real32 WorldTopLeftX = GameState->PlayerP.TileX * World.TileSideInPixels + GameState->PlayerP.RelTileX;
-    real32 WorldTopLeftY = GameState->PlayerP.TileY * World.TileSideInPixels + GameState->PlayerP.RelTileY;
-    DrawRectangle(Buffer, WorldTopLeftX, WorldTopLeftY, 
-                WorldTopLeftX + PlayerWidth, WorldTopLeftY + PlayerHeight,
-                PlayerR, PlayerG, PlayerB);
-    DrawPoint(Buffer, WorldTopLeftX, WorldTopLeftY, 1.0f, 0.0f, 0.0f);
+    real32 PlayerTopLeftPixX = World.PixPerMeter * 
+        (GameState->PlayerP.TileX * World.TileSideInMeters + GameState->PlayerP.RelTileX);
+    real32 PlayerTopLeftPixY = World.PixPerMeter * 
+        (GameState->PlayerP.TileY * World.TileSideInMeters + GameState->PlayerP.RelTileY);
+    real32 PlayerTopRightPixX = PlayerTopLeftPixX + PlayerWidth * World.PixPerMeter;
+    real32 PlayerTopRightPixY = PlayerTopLeftPixY + PlayerHeight * World.PixPerMeter;
 
+    DrawRectangle(Buffer, PlayerTopLeftPixX, PlayerTopLeftPixY, 
+                PlayerTopRightPixX, PlayerTopRightPixY,
+                PlayerR, PlayerG, PlayerB);
+    DrawPoint(Buffer, PlayerTopLeftPixX + 1, PlayerTopLeftPixY + 1, 1.0, 0.0, 0.0);
     DrawRectangle(Buffer, 
                 (real32)Input->MouseX, (real32)Input->MouseY, 
                 (real32)Input->MouseX + 10, (real32)Input->MouseY + 10,
