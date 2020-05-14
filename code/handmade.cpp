@@ -122,7 +122,7 @@ inline void RecanonicalazeCoord(int32 MapDim, real32 TileDim, int32 *TileMap, in
     }
 }
 
-inline void RecanonicalizePostion(world *World, canonical_postition *Pos)
+inline void RecanonicalizePostion(world *World, world_postition *Pos)
 {
     RecanonicalazeCoord(World->TileMapCountX, World->TileSideInMeters, 
         &Pos->TileMapX, &Pos->TileX, &Pos->RelTileX);
@@ -136,7 +136,7 @@ inline tile_map *GetTileMap(world *World, int32 X, int32 Y)
     return TileMap;
 }
 
-bool CanMove(world *World, canonical_postition *Pos)
+bool CanMove(world *World, world_postition *Pos)
 {
     tile_map *TileMap = GetTileMap(World, Pos->TileMapX, Pos->TileMapY); 
     uint32 Tile = TileMap->Map[Pos->TileY *World->TileMapCountX + Pos->TileX];
@@ -170,6 +170,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             1.0f, 0.0f, 1.0f);
 
     world World = {};
+    World.LowerLeftX = -(real32)World.TileSideInPixels/2;
+    World.LowerLeftY = (real32)Buffer->Height;
     World.TileSideInMeters = 1.4f;
     World.TileSideInPixels = 60;
     World.PixPerMeter = RoundReal32toInt32((real32)World.TileSideInPixels / World.TileSideInMeters);
@@ -180,13 +182,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
+        {1,0,0,0, 0,0,0,1, 0,0,0,0, 1,1,1,1},
 
-        {1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,1,0,0, 0,0,1,1, 0,0,1,0, 0,0,0,0},
-        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,0,0,0, 0,0,0,1, 0,0,0,1, 1,0,0,1},
+        {1,1,0,0, 0,0,0,1, 0,0,1,0, 0,0,0,0},
+        {1,1,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,1},
 
-        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,1,1,0, 0,0,0,1, 0,0,0,0, 0,0,0,1},
         {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
     };
@@ -210,13 +212,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
         {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
+        {1,0,0,0, 0,0,1,1, 1,1,0,0, 1,1,1,1},
 
-        {1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,1,0,0, 0,0,1,1, 0,0,1,0, 0,0,0,0},
-        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,0,0,0, 0,0,0,0, 0,1,0,1, 1,0,0,1},
+        {1,1,0,0, 0,0,1,1, 1,0,1,0, 0,0,0,0},
+        {1,1,0,0, 0,0,0,0, 0,1,0,0, 0,0,0,1},
 
-        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,1,1,0, 0,1,1,1, 1,0,0,0, 0,0,0,1},
         {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
         {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
     };
@@ -263,11 +265,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 NewPlayerY = GameState->PlayerP.RelTileY;
     if (Input0.Up.EndedDown)
     {
-        dPlayerY = -Delta;
+        dPlayerY = Delta;
     }
     if (Input0.Down.EndedDown)
     {
-        dPlayerY = Delta;
+        dPlayerY = -Delta;
     }
     if (Input0.Left.EndedDown)
     {
@@ -283,10 +285,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     if (NewPlayerX != GameState->PlayerP.RelTileX || NewPlayerY != GameState->PlayerP.RelTileY)
     {
-        canonical_postition BottomLeft = GameState->PlayerP;
+        world_postition BottomLeft = GameState->PlayerP;
         BottomLeft.RelTileX = NewPlayerX;
-        BottomLeft.RelTileY = NewPlayerY + PlayerHeight;
-        canonical_postition BottomRight = BottomLeft;
+        BottomLeft.RelTileY = NewPlayerY - PlayerHeight;
+        world_postition BottomRight = BottomLeft;
         BottomRight.RelTileX += PlayerWidth;
         RecanonicalizePostion(&World, &BottomLeft);
         RecanonicalizePostion(&World, &BottomRight);
@@ -294,7 +296,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             CanMove(&World, &BottomLeft) &&
             CanMove(&World, &BottomRight))
         {
-            canonical_postition TopRight = GameState->PlayerP;
+            world_postition TopRight = GameState->PlayerP;
             TopRight.RelTileX = NewPlayerX;
             TopRight.RelTileY = NewPlayerY;
             RecanonicalizePostion(&World, &TopRight);
@@ -318,17 +320,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 Red = 1.0f;
             }
+
+            real32 MinX = World.LowerLeftX + ((real32)Col)*World.TileSideInPixels;
+            real32 MinY = World.LowerLeftY - ((real32)Row)*World.TileSideInPixels;
+            real32 MaxX = MinX + World.TileSideInPixels;
+            real32 MaxY = MinY - World.TileSideInPixels;
             DrawRectangle(Buffer, 
-                (real32)Col * World.TileSideInPixels, (real32)Row * World.TileSideInPixels, 
-                (real32)(Col + 1) * World.TileSideInPixels , (real32)(Row + 1) * World.TileSideInPixels,
+                MinX, MaxY, MaxX, MinY,
                 Red, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
         }
     }
 
-    real32 PlayerTopLeftPixX = World.PixPerMeter * 
-        (GameState->PlayerP.TileX * World.TileSideInMeters + GameState->PlayerP.RelTileX);
-    real32 PlayerTopLeftPixY = World.PixPerMeter * 
-        (GameState->PlayerP.TileY * World.TileSideInMeters + GameState->PlayerP.RelTileY);
+    real32 PlayerTopLeftPixX = World.LowerLeftX + World.PixPerMeter * GameState->PlayerP.RelTileX
+        + GameState->PlayerP.TileX * World.TileSideInPixels;
+    real32 PlayerTopLeftPixY = World.LowerLeftY - GameState->PlayerP.TileY * World.TileSideInPixels
+        - World.PixPerMeter * GameState->PlayerP.RelTileY;
     real32 PlayerTopRightPixX = PlayerTopLeftPixX + PlayerWidth * World.PixPerMeter;
     real32 PlayerTopRightPixY = PlayerTopLeftPixY + PlayerHeight * World.PixPerMeter;
 

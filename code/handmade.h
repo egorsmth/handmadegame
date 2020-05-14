@@ -144,6 +144,9 @@ struct tile_map
 
 struct world
 {
+    real32 LowerLeftX;
+    real32 LowerLeftY;
+    
     real32 TileSideInMeters;
     int32 TileSideInPixels;
     int32 PixPerMeter;
@@ -156,7 +159,7 @@ struct world
     tile_map *TileMaps;
 };
 
-struct canonical_postition
+struct world_postition
 {
     int32 TileMapX;
     int32 TileMapY;
@@ -170,7 +173,7 @@ struct canonical_postition
 
 struct game_state
 {
-    canonical_postition PlayerP;
+    world_postition PlayerP;
 };
 
 #define HANDMADE_H
