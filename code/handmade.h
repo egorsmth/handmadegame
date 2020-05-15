@@ -137,35 +137,39 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 
-struct tile_map
+struct tile_chunk
 {
     uint32 *Map;
 };
 
 struct world
 {
-    real32 LowerLeftX;
-    real32 LowerLeftY;
-    
+    uint32 ChunkShift;
+    uint32 ChunkMask;
+    uint32 ChunkDim;
+
     real32 TileSideInMeters;
     int32 TileSideInPixels;
     int32 PixPerMeter;
 
-    int32 CountX;
-    int32 CountY;
+    int32 TileChunkCountX;
+    int32 TileChunkCountY;
+    tile_chunk *TileChunks;
+};
 
-    int32 TileMapCountX;
-    int32 TileMapCountY;
-    tile_map *TileMaps;
+struct tile_chunk_position
+{
+    uint32 TileChunkX;
+    uint32 TileChunkY;
+
+    uint32 RelTileX;
+    uint32 RelTileY;
 };
 
 struct world_postition
 {
-    int32 TileMapX;
-    int32 TileMapY;
-
-    int32 TileX;
-    int32 TileY;
+    uint32 AbsTileX;
+    uint32 AbsTileY;
 
     real32 RelTileX;
     real32 RelTileY;

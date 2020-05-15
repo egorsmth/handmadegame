@@ -104,149 +104,135 @@ internal void DrawRectangle(game_offscreen_buffer *Buffer,
     }
 }
 
-inline void RecanonicalazeCoord(int32 MapDim, real32 TileDim, int32 *TileMap, int32 *Tile, real32 *TileRel)
+inline void RecanonicalazeCoord(world *World, uint32 *Tile, real32 *TileRel)
 {
-    int32 Offset = (int32)floorf(*TileRel / TileDim);
+    int32 Offset = (int32)floorf(*TileRel / World->TileSideInMeters);
     *Tile += Offset;
-    *TileRel -= TileDim * Offset;
-    if (*Tile < 0)
-    {
-        *Tile = MapDim + *Tile;
-        --*TileMap;
-    }
-
-    if (*Tile >= MapDim)
-    {
-        *Tile = *Tile - MapDim;
-        ++*TileMap;
-    }
+    *TileRel -= World->TileSideInMeters * Offset;
+    Assert(*Tile >= 0);
+    Assert(*TileRel >= 0);
 }
 
 inline void RecanonicalizePostion(world *World, world_postition *Pos)
 {
-    RecanonicalazeCoord(World->TileMapCountX, World->TileSideInMeters, 
-        &Pos->TileMapX, &Pos->TileX, &Pos->RelTileX);
-    RecanonicalazeCoord(World->TileMapCountY, World->TileSideInMeters, 
-        &Pos->TileMapY, &Pos->TileY, &Pos->RelTileY);
+    RecanonicalazeCoord(World, 
+        &Pos->AbsTileX, &Pos->RelTileX);
+    RecanonicalazeCoord(World, 
+        &Pos->AbsTileY, &Pos->RelTileY);
 }
 
-inline tile_map *GetTileMap(world *World, int32 X, int32 Y)
+inline tile_chunk *GetTileChunk(world *World, int32 X, int32 Y)
 {
-    tile_map *TileMap = &World->TileMaps[Y * World->CountX + X];
-    return TileMap;
+    tile_chunk* TileChunk = 0;
+    if (X >= 0 && X < World->TileChunkCountX && Y >= 0 && Y < World->TileChunkCountY)
+    {
+        TileChunk = &World->TileChunks[Y * World->TileChunkCountX + X];
+    }
+    
+    return TileChunk;
+}
+
+inline tile_chunk_position GetChunkPosition(world *World, uint32 AbsTileX, uint32 AbsTileY)
+{
+    tile_chunk_position Result;
+
+    Result.TileChunkX = AbsTileX >> World->ChunkShift;
+    Result.TileChunkY = AbsTileY >> World->ChunkShift;
+    Result.RelTileX = AbsTileX & World->ChunkMask;
+    Result.RelTileY = AbsTileY & World->ChunkMask;
+
+    return Result;
+}
+
+inline uint32 GetTileValueUnchecked(world *World, tile_chunk *TileChunk, uint32 X, uint32 Y)
+{
+    Assert(TileChunk)
+    Assert(X < World->ChunkDim);
+    Assert(Y < World->ChunkDim);
+    
+    uint32 Value = TileChunk->Map[Y*World->ChunkDim + X];
+    return Value;
+}
+
+inline uint32 GetTileValue(world *World, tile_chunk *TileChunk, uint32 X, uint32 Y)
+{
+    
+    uint32 Tile = 0;
+    if (TileChunk)
+    {
+        Tile = GetTileValueUnchecked(World, TileChunk, X, Y);
+    }
+    
+    return Tile;
+}
+
+internal uint32 GetTileValue(world *World, uint32 AbsTileX, uint32 AbsTileY)
+{
+    tile_chunk_position ChunkPos = GetChunkPosition(World, AbsTileX, AbsTileY);
+    tile_chunk *TileChunk = GetTileChunk(World, ChunkPos.TileChunkX, ChunkPos.TileChunkY); 
+    uint32 Value = GetTileValue(World, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY);
+    return Value;
 }
 
 bool CanMove(world *World, world_postition *Pos)
 {
-    tile_map *TileMap = GetTileMap(World, Pos->TileMapX, Pos->TileMapY); 
-    uint32 Tile = TileMap->Map[Pos->TileY *World->TileMapCountX + Pos->TileX];
+    uint32 Tile = GetTileValue(World, Pos->AbsTileX, Pos->AbsTileY);
     return !Tile;
 }
 
-#define TILE_MAP_COUNT_X 16
-#define TILE_MAP_COUNT_Y 9
-#define TILES_COUNT_X 2
-#define TILES_COUNT_Y 2
+#define TILE_MAP_COUNT_X 256
+#define TILE_MAP_COUNT_Y 256
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
-    game_state *GameState = (game_state *)Memory->PermanentStorage;
-    if (!Memory->isInitialized)
-    {
-        Memory->isInitialized = true;
-        GameState->PlayerP.RelTileX = 0.3f;
-        GameState->PlayerP.RelTileY = 0.3f;
-        GameState->PlayerP.TileX = 3;
-        GameState->PlayerP.TileY = 3;
-        GameState->PlayerP.TileMapX = 0;
-        GameState->PlayerP.TileMapY = 0;
-    }
     
-    DrawRectangle(Buffer, 
-            0.0f, 0.0f, 
-            (real32)Buffer->Width, (real32)Buffer->Height,
-            1.0f, 0.0f, 1.0f);
+
+    uint32 Tiles[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
+    {
+        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
+        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1, 1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
+        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1, 1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
+
+        {1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1, 1,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,1},
+        {1,0,0,0, 0,0,1,1, 0,0,1,0, 0,0,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,1},
+        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+
+        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1, 1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
+        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
+        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
+        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1, 1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
+        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1, 1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
+
+        {1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1, 1,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,1},
+        {1,0,0,0, 0,0,1,1, 0,0,1,0, 0,0,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,1},
+        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+
+        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
+        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1, 1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
+        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
+    };
+
+    tile_chunk TileChunk;
+    TileChunk.Map = (uint32 *)Tiles;
 
     world World = {};
-    World.LowerLeftX = -(real32)World.TileSideInPixels/2;
-    World.LowerLeftY = (real32)Buffer->Height;
+    
+    World.ChunkShift = 8;
+    World.ChunkMask = 0xFF;
     World.TileSideInMeters = 1.4f;
     World.TileSideInPixels = 60;
     World.PixPerMeter = RoundReal32toInt32((real32)World.TileSideInPixels / World.TileSideInMeters);
-    World.TileMapCountX = TILE_MAP_COUNT_X;
-    World.TileMapCountY = TILE_MAP_COUNT_Y;
+    World.ChunkDim = 256;
+    World.TileChunks = &TileChunk;    
+    World.TileChunkCountX = 1;
+    World.TileChunkCountY = 1;
 
-    uint32 Tiles00[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
-    {
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,0,1, 0,0,0,0, 1,1,1,1},
+    real32 LowerLeftX = -(real32)World.TileSideInPixels/2;
+    real32 LowerLeftY = (real32)Buffer->Height;
 
-        {1,0,0,0, 0,0,0,1, 0,0,0,1, 1,0,0,1},
-        {1,1,0,0, 0,0,0,1, 0,0,1,0, 0,0,0,0},
-        {1,1,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,1},
-
-        {1,1,1,0, 0,0,0,1, 0,0,0,0, 0,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
-        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
-    };
-
-    uint32 Tiles01[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
-    {
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
-
-        {1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {0,0,0,0, 0,0,1,1, 0,0,1,0, 0,0,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
-
-        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
-        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
-    };
-
-    uint32 Tiles10[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
-    {
-        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,1,1, 1,1,0,0, 1,1,1,1},
-
-        {1,0,0,0, 0,0,0,0, 0,1,0,1, 1,0,0,1},
-        {1,1,0,0, 0,0,1,1, 1,0,1,0, 0,0,0,0},
-        {1,1,0,0, 0,0,0,0, 0,1,0,0, 0,0,0,1},
-
-        {1,1,1,0, 0,1,1,1, 1,0,0,0, 0,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
-    };
-
-    uint32 Tiles11[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = 
-    {
-        {1,1,1,1, 1,1,1,0, 1,1,1,1, 1,1,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,1, 1,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,1,1,1},
-
-        {1,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,0,1},
-        {0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,1},
-        {1,1,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
-
-        {1,1,1,0, 0,0,0,0, 0,0,0,0, 0,0,0,1},
-        {1,0,0,0, 0,0,0,0, 0,1,1,1, 1,1,1,1},
-        {1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1},
-    };
-    tile_map Tiles[TILES_COUNT_Y][TILES_COUNT_X];
-    Tiles[0][0].Map = (uint32 *)Tiles00;
-    Tiles[0][1].Map = (uint32 *)Tiles01;
-    Tiles[1][0].Map = (uint32 *)Tiles10;
-    Tiles[1][1].Map = (uint32 *)Tiles11;
-
-    World.TileMaps = (tile_map *)Tiles;
-    World.CountX = TILES_COUNT_X;
-    World.CountY = TILES_COUNT_Y;
-    
 
     game_controller_input Input0 = Input->Controllers[0];
     real32 PlayerR = 1.0f;
@@ -258,8 +244,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     real32 dPlayerX = 0.0f;
     real32 dPlayerY = 0.0f;
-    real32 DeltaMPerSec = 5.0f;
+    real32 DeltaMPerSec = 3.0f;
     real32 Delta = (real32)(DeltaMPerSec * Input->SecondsToAdvance);
+
+    game_state *GameState = (game_state *)Memory->PermanentStorage;
+    if (!Memory->isInitialized)
+    {
+        Memory->isInitialized = true;
+        GameState->PlayerP.RelTileX = 5.0f;
+        GameState->PlayerP.RelTileY = 5.0f;
+        GameState->PlayerP.AbsTileX = 3;
+        GameState->PlayerP.AbsTileY = 3;
+    }
 
     real32 NewPlayerX = GameState->PlayerP.RelTileX;
     real32 NewPlayerY = GameState->PlayerP.RelTileY;
@@ -286,8 +282,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if (NewPlayerX != GameState->PlayerP.RelTileX || NewPlayerY != GameState->PlayerP.RelTileY)
     {
         world_postition BottomLeft = GameState->PlayerP;
-        BottomLeft.RelTileX = NewPlayerX;
-        BottomLeft.RelTileY = NewPlayerY - PlayerHeight;
+        BottomLeft.RelTileX = NewPlayerX - 0.5f*PlayerWidth;
+        BottomLeft.RelTileY = NewPlayerY;
         world_postition BottomRight = BottomLeft;
         BottomRight.RelTileX += PlayerWidth;
         RecanonicalizePostion(&World, &BottomLeft);
@@ -301,47 +297,52 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             TopRight.RelTileY = NewPlayerY;
             RecanonicalizePostion(&World, &TopRight);
 
-            GameState->PlayerP.TileX    = TopRight.TileX;
-            GameState->PlayerP.TileY    = TopRight.TileY;
-            GameState->PlayerP.TileMapX = TopRight.TileMapX;
-            GameState->PlayerP.TileMapY = TopRight.TileMapY;
+            GameState->PlayerP.AbsTileX = TopRight.AbsTileX;
+            GameState->PlayerP.AbsTileY = TopRight.AbsTileY;
+
             GameState->PlayerP.RelTileX = TopRight.RelTileX;
             GameState->PlayerP.RelTileY = TopRight.RelTileY;
         }
     }
     
-    tile_map *TileMap = GetTileMap(&World, GameState->PlayerP.TileMapX, GameState->PlayerP.TileMapY);
-    for (int Row = 0; Row < World.TileMapCountY; Row++)
+    DrawRectangle(Buffer, 
+        0.0f, 0.0f, 
+        (real32)Buffer->Width, (real32)Buffer->Height,
+        1.0f, 0.0f, 1.0f);
+        
+    real32 CenterX = (real32)Buffer->Width / 2;
+    real32 CenterY = (real32)Buffer->Height / 2;
+    for (int32 RelRow = -10; RelRow <  10; RelRow++)
     {
-        for (int Col = 0; Col < World.TileMapCountX; Col++)
+        for (int32 RelCol = - 20; RelCol < 20; RelCol++)
         {
+            uint32 Col = RelCol + GameState->PlayerP.AbsTileX;
+            uint32 Row = RelRow + GameState->PlayerP.AbsTileY;
             real32 Red = 0.0f;
-            if (Row == GameState->PlayerP.TileY && Col == GameState->PlayerP.TileX)
+            if (Row == GameState->PlayerP.AbsTileY && Col == GameState->PlayerP.AbsTileX)
             {
                 Red = 1.0f;
             }
 
-            real32 MinX = World.LowerLeftX + ((real32)Col)*World.TileSideInPixels;
-            real32 MinY = World.LowerLeftY - ((real32)Row)*World.TileSideInPixels;
+            real32 MinX = CenterX + ((real32)RelCol)*World.TileSideInPixels;
+            real32 MinY = CenterY - ((real32)RelRow)*World.TileSideInPixels;
             real32 MaxX = MinX + World.TileSideInPixels;
             real32 MaxY = MinY - World.TileSideInPixels;
+            uint32 Blue = GetTileValue(&World, Col, Row);
             DrawRectangle(Buffer, 
                 MinX, MaxY, MaxX, MinY,
-                Red, (real32)TileMap->Map[Row * World.TileMapCountX + Col], 1.0f);
+                Red, (real32)Blue, 1.0f);
         }
     }
 
-    real32 PlayerTopLeftPixX = World.LowerLeftX + World.PixPerMeter * GameState->PlayerP.RelTileX
-        + GameState->PlayerP.TileX * World.TileSideInPixels;
-    real32 PlayerTopLeftPixY = World.LowerLeftY - GameState->PlayerP.TileY * World.TileSideInPixels
-        - World.PixPerMeter * GameState->PlayerP.RelTileY;
-    real32 PlayerTopRightPixX = PlayerTopLeftPixX + PlayerWidth * World.PixPerMeter;
-    real32 PlayerTopRightPixY = PlayerTopLeftPixY + PlayerHeight * World.PixPerMeter;
+    real32 PlayerLeft = CenterX + World.PixPerMeter * GameState->PlayerP.RelTileX - PlayerWidth*World.PixPerMeter*0.5f;
+    real32 PlayerTop  = CenterY - World.PixPerMeter * GameState->PlayerP.RelTileY - PlayerHeight*World.PixPerMeter;
 
-    DrawRectangle(Buffer, PlayerTopLeftPixX, PlayerTopLeftPixY, 
-                PlayerTopRightPixX, PlayerTopRightPixY,
+    DrawRectangle(Buffer, PlayerLeft, PlayerTop, 
+                PlayerLeft + PlayerWidth*World.PixPerMeter, 
+                PlayerTop + PlayerHeight*World.PixPerMeter, 
                 PlayerR, PlayerG, PlayerB);
-    DrawPoint(Buffer, PlayerTopLeftPixX + 1, PlayerTopLeftPixY + 1, 1.0, 0.0, 0.0);
+   // DrawPoint(Buffer, PlayerLeft + 1, PlayerTop + 1, 1.0, 0.0, 0.0);
     DrawRectangle(Buffer, 
                 (real32)Input->MouseX, (real32)Input->MouseY, 
                 (real32)Input->MouseX + 10, (real32)Input->MouseY + 10,
