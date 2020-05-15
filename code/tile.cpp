@@ -1,12 +1,18 @@
 
 #include "handmade.h"
 
-inline tile_chunk *GetTileChunk(tile_map *TileMap, uint32 X, uint32 Y)
+inline tile_chunk *GetTileChunk(tile_map *TileMap, uint32 X, uint32 Y, uint32 Z)
 {
     tile_chunk* TileChunk = 0;
-    if (X >= 0 && X < TileMap->TileChunkCountX && Y >= 0 && Y < TileMap->TileChunkCountY)
+    if (X >= 0 && X < TileMap->TileChunkCountX && 
+        Y >= 0 && Y < TileMap->TileChunkCountY &&
+        Z >= 0 && Z < TileMap->TileChunkCountZ)
     {
-        TileChunk = &TileMap->TileChunks[Y * TileMap->TileChunkCountX + X];
+        TileChunk = &TileMap->TileChunks[
+            Z * TileMap->TileChunkCountY * TileMap->TileChunkCountX +
+            Y * TileMap->TileChunkCountX +
+            X
+        ];
     }
     
     return TileChunk;
@@ -32,9 +38,9 @@ inline uint32 GetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, ui
     return Value;
 }
 
-inline void SetTileValue(tile_map *TileMap, tile_chunk *TileChunk, uint32 X, uint32 Y, uint32 Val)
+inline void SetTileValue(tile_map *TileMap, tile_chunk *TileChunk, 
+            uint32 X, uint32 Y, uint32 Val)
 {
-    uint32 Tile = 0;
     if (TileChunk)
     {
         SetTileValueUnchecked(TileMap, TileChunk, X, Y, Val);
@@ -51,30 +57,33 @@ inline uint32 GetTileValue(tile_map *TileMap, tile_chunk *TileChunk, uint32 X, u
     return Tile;
 }
 
-inline tile_chunk_position GetChunkPosition(tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY)
+inline tile_chunk_position GetChunkPosition(tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
 {
     tile_chunk_position Result;
 
     Result.TileChunkX = AbsTileX >> TileMap->ChunkShift;
     Result.TileChunkY = AbsTileY >> TileMap->ChunkShift;
+    Result.TileChunkZ = AbsTileZ;
     Result.RelTileX = AbsTileX & TileMap->ChunkMask;
     Result.RelTileY = AbsTileY & TileMap->ChunkMask;
+    
 
     return Result;
 }
 
-internal uint32 GetTileValue(tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY)
+internal uint32 GetTileValue(tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
 {
-    tile_chunk_position ChunkPos = GetChunkPosition(TileMap, AbsTileX, AbsTileY);
-    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY); 
+    tile_chunk_position ChunkPos = GetChunkPosition(TileMap, AbsTileX, AbsTileY, AbsTileZ);
+    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ); 
     uint32 Value = GetTileValue(TileMap, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY);
     return Value;
 }
 
 bool CanMove(tile_map *TileMap, tile_map_postition *Pos)
 {
-    uint32 Tile = GetTileValue(TileMap, Pos->AbsTileX, Pos->AbsTileY);
-    return !Tile;
+    uint32 Tile = GetTileValue(TileMap, Pos->AbsTileX, Pos->AbsTileY, Pos->AbsTileZ);
+    
+    return Tile != 2;
 }
 
 inline void RecanonicalazeCoord(tile_map *TileMap, uint32 *Tile, real32 *TileRel)
@@ -95,11 +104,23 @@ inline void RecanonicalizePostion(tile_map *World, tile_map_postition *Pos)
         &Pos->AbsTileY, &Pos->RelTileY);
 }
 
-inline void SetTileValue(memory_arena *Arena, tile_map *TileMap, uint32 X, uint32 Y, uint32 Val)
+inline void SetTileValue(memory_arena *Arena, tile_map *TileMap, 
+                        uint32 X, uint32 Y, uint32 Z,
+                        uint32 Val)
 {
-    tile_chunk_position ChunkPos = GetChunkPosition(TileMap, X, Y);
-    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY); 
+    tile_chunk_position ChunkPos = GetChunkPosition(TileMap, X, Y, Z);
+    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ); 
     Assert(TileChunk);
+
+    if (!TileChunk->Map)
+    {
+        uint32 TileCount = TileMap->ChunkDim*TileMap->ChunkDim;
+        TileChunk->Map = PushArray(Arena, TileCount, uint32);
+        for (uint32 TileIndex = 0; TileIndex < TileCount; TileIndex++)
+        {
+            TileChunk->Map[TileIndex] = 1;
+        }
+    }
 
     SetTileValue(TileMap, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY, Val);
 }

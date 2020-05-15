@@ -166,5 +166,16 @@ struct game_state
     tile_map_postition PlayerP;
 };
 
+#define PushStruct(Arena, type) (type *)PushStruct_(Arena, sizeof(type))
+#define PushArray(Arena, Count, type) (type *)PushStruct_(Arena, (Count) * sizeof(type))
+
+void *PushStruct_(memory_arena *Arena, memory_index Size)
+{
+    Assert(Arena->Used + Size <= Arena->Size);
+    void * Result = Arena->Base + Arena->Used;
+    Arena->Used += Size;
+    return Result;
+}
+
 #define HANDMADE_H
 #endif
