@@ -19,6 +19,8 @@ typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+typedef size_t memory_index;
+
 typedef float real32;
 typedef double real64;
 
@@ -61,6 +63,12 @@ inline uint32 SafeTruncateUint32(uint64 Value)
 {
     Assert(Value <= 0xFFFFFFFF);
     uint32 Result = (uint32)Value;
+    return Result;
+}
+
+inline int32 RoundReal32toInt32(real32 Real32)
+{
+    int32 Result = (int32)roundf(Real32);
     return Result;
 }
 
@@ -137,47 +145,25 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 
-struct tile_chunk
+#include "tile.h"
+
+struct memory_arena
 {
-    uint32 *Map;
+    memory_index Size;
+    uint8 * Base;
+    memory_index Used;
 };
 
 struct world
 {
-    uint32 ChunkShift;
-    uint32 ChunkMask;
-    uint32 ChunkDim;
-
-    real32 TileSideInMeters;
-    int32 TileSideInPixels;
-    int32 PixPerMeter;
-
-    int32 TileChunkCountX;
-    int32 TileChunkCountY;
-    tile_chunk *TileChunks;
-};
-
-struct tile_chunk_position
-{
-    uint32 TileChunkX;
-    uint32 TileChunkY;
-
-    uint32 RelTileX;
-    uint32 RelTileY;
-};
-
-struct world_postition
-{
-    uint32 AbsTileX;
-    uint32 AbsTileY;
-
-    real32 RelTileX;
-    real32 RelTileY;
+    tile_map *TileMap;
 };
 
 struct game_state
 {
-    world_postition PlayerP;
+    memory_arena WorldArena;
+    world *World;
+    tile_map_postition PlayerP;
 };
 
 #define HANDMADE_H
