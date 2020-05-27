@@ -101,6 +101,36 @@ internal void DrawRectangle(game_offscreen_buffer *Buffer,
     }
 }
 
+#pragma pack(push, 1)
+struct bitmap_header
+{
+    uint16 FileType;
+    uint32 FileSize;
+    uint16 Reserved1;
+    uint16 Reserved2;
+    uint32 BitMapOffset;
+    uint32 Size;
+    int32 Width;
+    int32 Height;
+    uint16 Planes;
+    uint16 BitesPerPixel;
+};
+#pragma pack(pop)
+
+internal uint32 * DEBUGLoadBMP(
+    thread_context *Thread,
+    debug_platform_read_entire_file *ReadEntireFile, char *Filename)
+{
+    uint32 *Result = 0;
+    debug_file_read FileResult = ReadEntireFile(Thread, Filename);
+    if(FileResult.Content)
+    {
+        bitmap_header *Header = (bitmap_header *)FileResult.Content;
+        Result = (uint32 *)((uint8 *)FileResult.Content + Header->BitMapOffset);
+    }
+    return Result;
+}
+
 internal void InitializeArena(memory_arena *Arena,
                 memory_index Size, uint8 *Base)
 {
@@ -119,6 +149,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->isInitialized)
     {
+        DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/background.bmp");
         Memory->isInitialized = true;
         GameState->PlayerP.RelTileX = 0.0f;
         GameState->PlayerP.RelTileY = 0.0f;
@@ -163,6 +194,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 TilePerHeight = 9;
         uint32 ScreenY = 0;
         uint32 ScreenX = 0;
+        uint32 ScreenZ = 0;
+        bool DoorUp = true;
+        bool DoorDown = false;
+        bool DoorStarted = false;
         for (int32 ScreenIndex = 0; ScreenIndex < 100; ScreenIndex++)
         {
                 for (uint32 TileY = 0; TileY < TilePerHeight; TileY++)
@@ -171,11 +206,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     {
                         uint32 AbsTileX = ScreenX * TilePerWidth + TileX;
                         uint32 AbsTileY = ScreenY * TilePerHeight + TileY;
-                        if (AbsTileY == 16 && AbsTileX == 0)
-                        {
-                            int32 a = 1;
-                        }
-                        uint32 AbsTileZ = 0;
+                        uint32 AbsTileZ = ScreenZ;
                         uint32 Val = 1;
                         if (TileX == 0 || TileX == TilePerWidth - 1)
                         {
@@ -189,19 +220,64 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         {
                             Val = 1;
                         }
+                        if (TileX == 10 && TileY == 6 && ScreenX == 0 && ScreenY == 0)
+                        {
+                            DoorStarted = !DoorStarted;
+                            if (DoorUp)
+                            {
+                                Val = 3;
+                            }
+
+                            if (DoorDown)
+                            {
+                                Val = 4;
+                            }
+                        }
                         SetTileValue(&GameState->WorldArena, 
                                     World->TileMap, 
                                     AbsTileX, AbsTileY, AbsTileZ, Val);
                     }
                 }
-                int random_variable = std::rand();
-                if (random_variable % 2 == 1)
+                
+                if (DoorStarted)
                 {
-                    ScreenX++;
+                    if (DoorUp)
+                    {
+                        ScreenZ++;
+                    }
+                    else if (DoorDown)
+                    {
+                        ScreenZ--;
+                    }
                 }
                 else
                 {
-                    ScreenY++;
+                    int random_variable = std::rand();
+                    if (random_variable % 2 == 1)
+                    {
+                        ScreenX++;
+                    }
+                    else
+                    {
+                        ScreenY++;
+                    }
+                }
+                if (DoorUp)
+                {
+                    DoorDown = true;
+                    DoorUp = false;
+                }
+                else if (DoorDown)
+                {
+                    DoorUp = true;
+                    DoorDown = false;
+                }
+                else
+                {
+                    DoorUp = false;
+                    DoorDown = false;
+
+                    
                 }
         }   
         
@@ -257,11 +333,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             TopRight.RelTileY = NewPlayerY;
             RecanonicalizePostion(TileMap, &TopRight);
 
-            GameState->PlayerP.AbsTileX = TopRight.AbsTileX;
-            GameState->PlayerP.AbsTileY = TopRight.AbsTileY;
-
-            GameState->PlayerP.RelTileX = TopRight.RelTileX;
-            GameState->PlayerP.RelTileY = TopRight.RelTileY;
+            if (!IsOnSameTile(&GameState->PlayerP, &TopRight))
+            {
+                uint32 TileValue = GetTileValue(TileMap, &TopRight);
+                if (TileValue == 3)
+                {
+                    TopRight.AbsTileZ++;
+                }
+                else if (TileValue == 4)
+                {
+                    TopRight.AbsTileZ--;
+                }
+            }
+            GameState->PlayerP = TopRight;
         }
     }
     
@@ -307,6 +391,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 Red = 1.0f;
                 Green = 1.0f;
                 Blue = 1.0f;
+            }
+            else if (Val == 3)
+            {
+                Red = 1.0f;
+                Green = 0.5f;
+                Blue = 0.5f;
+            }
+            else if (Val == 4)
+            {
+                Red = 0.5f;
+                Green = 1.0f;
+                Blue = 0.5f;
             }
             if (Row == GameState->PlayerP.AbsTileY && Col == GameState->PlayerP.AbsTileX)
             {

@@ -79,9 +79,15 @@ internal uint32 GetTileValue(tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY
     return Value;
 }
 
+internal uint32 GetTileValue(tile_map *TileMap, tile_map_postition *Pos)
+{
+    uint32 Value = GetTileValue(TileMap, Pos->AbsTileX, Pos->AbsTileY, Pos->AbsTileZ);
+    return Value;
+}
+
 bool CanMove(tile_map *TileMap, tile_map_postition *Pos)
 {
-    uint32 Tile = GetTileValue(TileMap, Pos->AbsTileX, Pos->AbsTileY, Pos->AbsTileZ);
+    uint32 Tile = GetTileValue(TileMap, Pos);
     
     return Tile != 2;
 }
@@ -123,4 +129,12 @@ inline void SetTileValue(memory_arena *Arena, tile_map *TileMap,
     }
 
     SetTileValue(TileMap, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY, Val);
+}
+
+inline bool IsOnSameTile(tile_map_postition *Pos1, tile_map_postition *Pos2)
+{
+    bool Result = (Pos1->AbsTileX == Pos2->AbsTileX) &&
+        (Pos1->AbsTileY == Pos2->AbsTileY) &&
+        (Pos1->AbsTileZ == Pos2->AbsTileZ);
+    return Result;
 }

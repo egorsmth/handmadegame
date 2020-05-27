@@ -39,7 +39,7 @@ struct thread_context
 {
     int Placeholder;
 };
-
+#define INTERNAL_BUILD 1
 #if INTERNAL_BUILD
 struct debug_file_read
 {
