@@ -117,18 +117,33 @@ struct bitmap_header
 };
 #pragma pack(pop)
 
-internal uint32 * DEBUGLoadBMP(
+internal loaded_bitmap DEBUGLoadBMP(
     thread_context *Thread,
     debug_platform_read_entire_file *ReadEntireFile, char *Filename)
 {
-    uint32 *Result = 0;
+    loaded_bitmap Bitmap = {};
+    
     debug_file_read FileResult = ReadEntireFile(Thread, Filename);
     if(FileResult.Content)
     {
         bitmap_header *Header = (bitmap_header *)FileResult.Content;
+        uint32 *Result = 0;
         Result = (uint32 *)((uint8 *)FileResult.Content + Header->BitMapOffset);
+        Bitmap.Width = Header->Width;
+        Bitmap.Height = Header->Height;
+        Bitmap.Pixels = Result;
+        // if big endian (not exactly)
+        uint32 *SourceDest = Result;
+        for (int32 Y = 0; Y < Header->Width; Y++)
+        {
+            for (int32 X = 0; X < Header->Height; X++)
+            {
+                *SourceDest = (*SourceDest >> 8) | (*SourceDest << 24);
+                ++SourceDest;
+            }
+        }
     }
-    return Result;
+    return Bitmap;
 }
 
 internal void InitializeArena(memory_arena *Arena,
@@ -137,6 +152,50 @@ internal void InitializeArena(memory_arena *Arena,
     Arena->Size = Size;
     Arena->Base = Base;
     Arena->Used = 0;
+}
+
+internal void DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, real32 RealX, real32 RealY)
+{
+    int32 MinX = RoundReal32toInt32(RealX);
+    int32 MaxX = RoundReal32toInt32(RealX + (real32)Bitmap->Width);
+    int32 MinY = RoundReal32toInt32(RealY);
+    int32 MaxY = RoundReal32toInt32(RealY + (real32)Bitmap->Height);
+    
+    if (MinX < 0)
+    {
+        MinX = 0;
+    }
+
+    if (MinY < 0)
+    {
+        MinY = 0;
+    }
+
+    if (MaxX > Buffer->Width)
+    {
+        MaxX = Buffer->Width;
+    }
+
+    if (MaxY > Buffer->Height)
+    {
+        MaxY = Buffer->Height;
+    }
+
+    uint32 *SourceRow = Bitmap->Pixels + Bitmap->Width*(Bitmap->Height - 1);
+    uint8 *DestRow = ((uint8 *)Buffer->Memory + 
+                    MinX * Buffer->BytesPerPixel + 
+                    MinY * Buffer->Pitch);
+    for (int32 Y = MinY; Y < MaxY; Y++)
+    {
+            uint32 *Dest = (uint32 *)DestRow;
+            uint32 *Source = SourceRow;
+            for (int32 X = MinX; X < MaxX; X++)
+            {
+                *Dest++ = *Source++;
+            }
+            DestRow += Buffer->Pitch;
+            SourceRow -= Bitmap->Width;
+    }
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -149,8 +208,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->isInitialized)
     {
-        DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/background.bmp");
+        
         Memory->isInitialized = true;
+        GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/background.bmp");
+        GameState->PlayerHead = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head.bmp");
+        GameState->PlayerTorso = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/torso.bmp");
+        GameState->PlayerLegs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs.bmp");
         GameState->PlayerP.RelTileX = 0.0f;
         GameState->PlayerP.RelTileY = 0.0f;
         GameState->PlayerP.AbsTileX = 3;
@@ -349,11 +412,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
     
-    DrawRectangle(Buffer, 
-        0.0f, 0.0f, 
-        (real32)Buffer->Width, (real32)Buffer->Height,
-        1.0f, 0.0f, 1.0f);
-        
+    DrawBitmap(Buffer, &GameState->Backdrop, 0.0f, 0.0f);
+
     real32 CenterX = (real32)Buffer->Width / 2;
     real32 CenterY = (real32)Buffer->Height / 2;
     real32 Red = 0.0f;
@@ -378,13 +438,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 Red = 1.0f;
                 Green = 0.0f;
                 Blue = 0.0f;
-
+                continue;
             }
             else if (Val == 1)
             {
                 Red = 0.5f;
                 Green = 0.5f;
                 Blue = 0.5f;
+                continue;
             }
             else if (Val == 2)
             {
@@ -427,6 +488,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 PlayerLeft + PlayerWidth*TileMap->PixPerMeter, 
                 PlayerTop + PlayerHeight*TileMap->PixPerMeter, 
                 PlayerR, PlayerG, PlayerB);
+    DrawBitmap(Buffer, &GameState->PlayerHead, PlayerLeft, PlayerTop);
+
    // DrawPoint(Buffer, PlayerLeft + 1, PlayerTop + 1, 1.0, 0.0, 0.0);
     DrawRectangle(Buffer, 
                 (real32)Input->MouseX, (real32)Input->MouseY, 

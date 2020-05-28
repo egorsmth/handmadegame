@@ -159,11 +159,22 @@ struct world
     tile_map *TileMap;
 };
 
+struct loaded_bitmap
+{
+    int32 Width;
+    int32 Height;
+    uint32 *Pixels;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
     world *World;
     tile_map_postition PlayerP;
+    loaded_bitmap Backdrop;
+    loaded_bitmap PlayerHead;
+    loaded_bitmap PlayerTorso;
+    loaded_bitmap PlayerLegs;
 };
 
 #define PushStruct(Arena, type) (type *)PushStruct_(Arena, sizeof(type))
