@@ -1,6 +1,7 @@
 #include "handmade.h"
 #include "corecrt_math.h"
 #include "tile.cpp"
+#include "intrinsics.h"
 
 #include <cstdlib>
 
@@ -114,6 +115,16 @@ struct bitmap_header
     int32 Height;
     uint16 Planes;
     uint16 BitesPerPixel;
+    uint32 Compression;
+    uint32 SizeOfBitmap;
+    int32 HorzRezolution;
+    int32 VertRezolution;
+    uint32 ColorsUsed;
+    uint32 ColorsImported;
+    
+    uint32 RedMask;
+    uint32 GreenMask;
+    uint32 BlueMask;
 };
 #pragma pack(pop)
 
@@ -132,14 +143,28 @@ internal loaded_bitmap DEBUGLoadBMP(
         Bitmap.Width = Header->Width;
         Bitmap.Height = Header->Height;
         Bitmap.Pixels = Result;
+
+        uint32 RedMask = Header->RedMask;  
+        uint32 GreenMask = Header->GreenMask;
+        uint32 BlueMask = Header->BlueMask;
+        uint32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
+
+        bit_scan_result RedShift   = FindFirstSetBit(RedMask);
+        bit_scan_result GreenShift = FindFirstSetBit(GreenMask);
+        bit_scan_result BlueShift  = FindFirstSetBit(BlueMask);
+        bit_scan_result AlphaShift = FindFirstSetBit(AlphaMask);
+        
         // if big endian (not exactly)
         uint32 *SourceDest = Result;
-        for (int32 Y = 0; Y < Header->Width; Y++)
+        for (int32 Y = 0; Y < -Header->Height; Y++)
         {
-            for (int32 X = 0; X < Header->Height; X++)
+            for (int32 X = 0; X < Header->Width; X++)
             {
-                *SourceDest = (*SourceDest >> 8) | (*SourceDest << 24);
-                ++SourceDest;
+                uint32 C = *SourceDest;
+                *SourceDest++ = ((((C >> AlphaShift.Index) & 0xFF) << 24) |
+                                 (((C >> RedShift.Index) & 0xFF) << 16) |
+                                 (((C >> GreenShift.Index) & 0xFF) << 8) |
+                                 (((C >> BlueShift.Index) & 0xFF) << 0));
             }
         }
     }
@@ -191,8 +216,28 @@ internal void DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r
             uint32 *Source = SourceRow;
             for (int32 X = MinX; X < MaxX; X++)
             {
-                *Dest++ = *Source++;
+                real32 A =  (real32)((*Source >> 24) & 0xFF) / 255.0f;
+                real32 SR = (real32)((*Source >> 16) & 0xFF);
+                real32 SG = (real32)((*Source >> 8) & 0xFF);
+                real32 SB = (real32)((*Source >> 0) & 0xFF);
+
+                real32 DR = (real32)((*Dest >> 16) & 0xFF);
+                real32 DG = (real32)((*Dest >> 8) & 0xFF);
+                real32 DB = (real32)((*Dest >> 0) & 0xFF);
+
+                real32 R = (1.0f - A)*DR + A * SR;
+                real32 G = (1.0f - A)*DG + A * SG;
+                real32 B = (1.0f - A)*DB + A * SB;
+
+                *Dest = (
+                    ((uint32)(R + 0.5f) << 16) |
+                    ((uint32)(G + 0.5f) << 8) |
+                    ((uint32)(B + 0.5f) << 0)
+                );
+                Dest++;
+                Source++;
             }
+            
             DestRow += Buffer->Pitch;
             SourceRow -= Bitmap->Width;
     }
