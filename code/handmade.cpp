@@ -256,9 +256,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         Memory->isInitialized = true;
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/background.bmp");
-        GameState->PlayerHead = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head.bmp");
-        GameState->PlayerTorso = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/torso.bmp");
-        GameState->PlayerLegs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs.bmp");
+        
+        GameState->HeroBitmap[0].Head = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head_back.bmp");
+        GameState->HeroBitmap[0].Body = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/body_back.bmp");
+        GameState->HeroBitmap[0].Legs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs_back.bmp");
+        
+        GameState->HeroBitmap[1].Head = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head_right.bmp");
+        GameState->HeroBitmap[1].Body = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/body_right.bmp");
+        GameState->HeroBitmap[1].Legs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs_right.bmp");
+
+        GameState->HeroBitmap[2].Head = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head_front.bmp");
+        GameState->HeroBitmap[2].Body = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/body_front.bmp");
+        GameState->HeroBitmap[2].Legs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs_front.bmp");
+
+        GameState->HeroBitmap[3].Head = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/head_left.bmp");
+        GameState->HeroBitmap[3].Body = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/body_left.bmp");
+        GameState->HeroBitmap[3].Legs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs_left.bmp");
+
         GameState->PlayerP.RelTileX = 0.0f;
         GameState->PlayerP.RelTileY = 0.0f;
         GameState->PlayerP.AbsTileX = 3;
@@ -405,18 +419,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     tile_map *TileMap = World->TileMap;    
     if (Input0.Up.EndedDown)
     {
+        GameState->HeroFacingDirection = 0;
         dPlayerY = Delta;
     }
     if (Input0.Down.EndedDown)
     {
+        GameState->HeroFacingDirection = 2;
         dPlayerY = -Delta;
     }
     if (Input0.Left.EndedDown)
     {
+        GameState->HeroFacingDirection = 3;
         dPlayerX = -Delta;
     }
     if (Input0.Right.EndedDown)
     {
+        GameState->HeroFacingDirection = 1;
         dPlayerX = Delta;
     }
 
@@ -533,7 +551,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 PlayerLeft + PlayerWidth*TileMap->PixPerMeter, 
                 PlayerTop + PlayerHeight*TileMap->PixPerMeter, 
                 PlayerR, PlayerG, PlayerB);
-    DrawBitmap(Buffer, &GameState->PlayerHead, PlayerLeft, PlayerTop);
+    hero_bitmaps HeroBitmaps = GameState->HeroBitmap[GameState->HeroFacingDirection];
+    DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerLeft, PlayerTop);
+    DrawBitmap(Buffer, &HeroBitmaps.Body, PlayerLeft, PlayerTop);
+    DrawBitmap(Buffer, &HeroBitmaps.Head, PlayerLeft, PlayerTop);
 
    // DrawPoint(Buffer, PlayerLeft + 1, PlayerTop + 1, 1.0, 0.0, 0.0);
     DrawRectangle(Buffer, 

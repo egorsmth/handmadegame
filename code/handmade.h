@@ -188,15 +188,22 @@ struct loaded_bitmap
     uint32 *Pixels;
 };
 
+struct hero_bitmaps
+{
+    loaded_bitmap Head;
+    loaded_bitmap Body;
+    loaded_bitmap Legs;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
     world *World;
     tile_map_postition PlayerP;
+    tile_map_postition CameraP;
     loaded_bitmap Backdrop;
-    loaded_bitmap PlayerHead;
-    loaded_bitmap PlayerTorso;
-    loaded_bitmap PlayerLegs;
+    uint32 HeroFacingDirection;
+    hero_bitmaps HeroBitmap[4];
 };
 
 #define PushStruct(Arena, type) (type *)PushStruct_(Arena, sizeof(type))
