@@ -138,3 +138,30 @@ inline bool IsOnSameTile(tile_map_postition *Pos1, tile_map_postition *Pos2)
         (Pos1->AbsTileZ == Pos2->AbsTileZ);
     return Result;
 }
+
+inline void UpdateCameraPos(tile_map *TileMap, tile_map_postition *Camera, tile_map_postition *Player)
+{
+    tile_chunk_position Pos = GetChunkPosition(TileMap, Player->AbsTileX, Player->AbsTileY, Player->AbsTileZ);
+    int32 TileX = Pos.TileChunkX;
+    int32 TileY = Pos.TileChunkY;
+    int32 TileZ = Pos.TileChunkZ;
+
+    TileX += 17 / 2;
+    TileY += 9 / 2;
+
+    Camera->AbsTileX = TileX;
+    Camera->AbsTileY = TileY;
+    Camera->AbsTileZ = TileZ;
+}
+
+inline tile_map_diff Substract(tile_map *TileMap, tile_map_postition *A, tile_map_postition *B)
+{
+    tile_map_diff Diff = {};
+    
+    real32 DTileX = (real32)A->AbsTileX - (real32)B->AbsTileX;
+    real32 DTileY = (real32)A->AbsTileY - (real32)B->AbsTileY;
+
+    Diff.Dx = TileMap->TileSideInMeters * DTileX + (A->RelTileX - B->RelTileX);
+    Diff.Dy = TileMap->TileSideInMeters * DTileY + (A->RelTileY - B->RelTileY);
+    return Diff;
+}

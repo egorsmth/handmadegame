@@ -41,6 +41,11 @@ struct tile_map_postition
     real32 RelTileY;
 };
 
+struct tile_map_diff
+{
+    real32 Dx;
+    real32 Dy;
+};
 
 #define TILE_H
 #endif
