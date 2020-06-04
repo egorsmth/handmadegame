@@ -377,13 +377,27 @@ internal void Win32DisplayBufferWindow(
     HDC DeviceContext,
     int Width, int Height) 
 {
-    StretchDIBits(
-        DeviceContext,
-        0, 0, Buffer->Width, Buffer->Height,
-        0, 0, Buffer->Width, Buffer->Height,
-        Buffer->Memory,
-        &Buffer->Info,
-        DIB_RGB_COLORS, SRCCOPY);
+    if (Width > Buffer->Width * 2) // also check hight
+    {
+        StretchDIBits(
+            DeviceContext,
+            0, 0, Width, Height,
+            0, 0, Buffer->Width, Buffer->Height,
+            Buffer->Memory,
+            &Buffer->Info,
+            DIB_RGB_COLORS, SRCCOPY);
+    }
+    else
+    {
+        PatBlt(DeviceContext, 0, 0, Width, Height, BLACKNESS);
+        StretchDIBits(
+            DeviceContext,
+            0, 0, Buffer->Width, Buffer->Height,
+            0, 0, Buffer->Width, Buffer->Height,
+            Buffer->Memory,
+            &Buffer->Info,
+            DIB_RGB_COLORS, SRCCOPY);
+    }
 }
 
 internal win32_window_dims Win32GetWindowDims(HWND WindowHandler)
@@ -395,6 +409,34 @@ internal win32_window_dims Win32GetWindowDims(HWND WindowHandler)
     Result.Width = WindowRect.right - WindowRect.left;
     Result.Height = WindowRect.bottom- WindowRect.top;
     return Result;
+}
+
+global_variable WINDOWPLACEMENT g_wpPrev = { sizeof(g_wpPrev) };
+internal void Win32TogleFullScreen(HWND hwnd)
+{
+    DWORD dwStyle = GetWindowLong(hwnd, GWL_STYLE);
+    if (dwStyle & WS_OVERLAPPEDWINDOW)
+    {
+        MONITORINFO mi = { sizeof(mi) };
+        if (GetWindowPlacement(hwnd, &g_wpPrev) &&
+            GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+        {
+            SetWindowLong(hwnd, GWL_STYLE,dwStyle & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(hwnd, HWND_TOP,
+                mi.rcMonitor.left, mi.rcMonitor.top,
+                mi.rcMonitor.right - mi.rcMonitor.left,
+                mi.rcMonitor.bottom - mi.rcMonitor.top,
+                SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+    }
+    else 
+    {
+        SetWindowLong(hwnd, GWL_STYLE, dwStyle | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(hwnd, &g_wpPrev);
+        SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                 SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
 }
 
 LRESULT CALLBACK Win32MainWindowCallback(
@@ -585,7 +627,12 @@ internal void Win32ProcessPendingMessages(game_controller_input *KeyboardControl
                 else if (VKcode == VK_SPACE)
                 {
                     OutputDebugStringA("KEY SPACE\n");
-                    Win32ProcessKeyboardEvent(&KeyboardController->Space, isDown);
+                    // Win32ProcessKeyboardEvent(&KeyboardController->Space, isDown);
+                    
+                    if (Message.hwnd && isDown)
+                    {
+                        Win32TogleFullScreen(Message.hwnd);
+                    }
                 }
                 else if (VKcode == VK_UP)
                 {
@@ -603,10 +650,6 @@ internal void Win32ProcessPendingMessages(game_controller_input *KeyboardControl
                 else if (VKcode == VK_RIGHT)
                 {
                     Win32ProcessKeyboardEvent(&KeyboardController->Right, isDown);
-                }
-                else if (VKcode == VK_SPACE)
-                {
-                    
                 }
                 else if (VKcode == VK_ESCAPE)
                 {
