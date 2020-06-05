@@ -105,9 +105,9 @@ inline void RecanonicalazeCoord(tile_map *TileMap, uint32 *Tile, real32 *TileRel
 inline void RecanonicalizePostion(tile_map *World, tile_map_postition *Pos)
 {
     RecanonicalazeCoord(World, 
-        &Pos->AbsTileX, &Pos->RelTileX);
+        &Pos->AbsTileX, &Pos->RelTile.X);
     RecanonicalazeCoord(World, 
-        &Pos->AbsTileY, &Pos->RelTileY);
+        &Pos->AbsTileY, &Pos->RelTile.Y);
 }
 
 inline void SetTileValue(memory_arena *Arena, tile_map *TileMap, 
@@ -154,14 +154,12 @@ inline void UpdateCameraPos(tile_map *TileMap, tile_map_postition *Camera, tile_
     Camera->AbsTileZ = TileZ;
 }
 
-inline tile_map_diff Substract(tile_map *TileMap, tile_map_postition *A, tile_map_postition *B)
+inline v2 Substract(tile_map *TileMap, tile_map_postition *A, tile_map_postition *B)
 {
-    tile_map_diff Diff = {};
+    v2 Diff = {};
     
-    real32 DTileX = (real32)A->AbsTileX - (real32)B->AbsTileX;
-    real32 DTileY = (real32)A->AbsTileY - (real32)B->AbsTileY;
+    v2 DTile = V2((real32)A->AbsTileX - (real32)B->AbsTileX, (real32)A->AbsTileY - (real32)B->AbsTileY);
 
-    Diff.Dx = TileMap->TileSideInMeters * DTileX + (A->RelTileX - B->RelTileX);
-    Diff.Dy = TileMap->TileSideInMeters * DTileY + (A->RelTileY - B->RelTileY);
+    Diff = TileMap->TileSideInMeters * DTile  + (A->RelTile - B->RelTile);
     return Diff;
 }

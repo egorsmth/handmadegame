@@ -37,14 +37,12 @@ struct tile_map_postition
     uint32 AbsTileY;
     uint32 AbsTileZ;
 
-    real32 RelTileX;
-    real32 RelTileY;
+    v2 RelTile;
 };
 
 struct tile_map_diff
 {
-    real32 Dx;
-    real32 Dy;
+    v2 D;
 };
 
 #define TILE_H

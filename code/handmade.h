@@ -166,7 +166,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *Thread, game_memory *Memory, game_sound_output_buffer *SoundBuffer, game_input *Input)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
-
+#include "handmade_math.h"
 #include "tile.h"
 
 struct memory_arena
