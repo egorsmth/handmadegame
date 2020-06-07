@@ -142,7 +142,7 @@ struct game_input
     int32 MouseX, MouseY, MouseZ;
 
     real64 SecondsToAdvance;
-    
+        
     game_controller_input Controllers[4];
 };
 
@@ -200,6 +200,7 @@ struct game_state
     memory_arena WorldArena;
     world *World;
     tile_map_postition PlayerP;
+    v2 dPlayer;
     tile_map_postition CameraP;
     loaded_bitmap Backdrop;
     uint32 HeroFacingDirection;

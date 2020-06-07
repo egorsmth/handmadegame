@@ -412,44 +412,48 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
     }
 
-    game_controller_input Input0 = Input->Controllers[0];
-    v2 dPlayer = {};
-
-    real32 DeltaMPerSec = 3.0f;
-    real32 Delta = (real32)(DeltaMPerSec * Input->SecondsToAdvance);
-
-    v2 NewPlayerPos = GameState->PlayerP.RelTile;
-    
     world *World = GameState->World;
-    tile_map *TileMap = World->TileMap;    
+    tile_map *TileMap = World->TileMap;   
+
+    game_controller_input Input0 = Input->Controllers[0];
+    v2 ddPlayer = {};
+    real32 Delta = 1.0f;    
     if (Input0.Up.EndedDown)
     {
         GameState->HeroFacingDirection = 0;
-        dPlayer.Y = Delta;
+        ddPlayer.Y = Delta;
     }
     if (Input0.Down.EndedDown)
     {
         GameState->HeroFacingDirection = 2;
-        dPlayer.Y = -Delta;
+        ddPlayer.Y = -Delta;
     }
     if (Input0.Left.EndedDown)
     {
         GameState->HeroFacingDirection = 3;
-        dPlayer.X = -Delta;
+        ddPlayer.X = -Delta;
     }
     if (Input0.Right.EndedDown)
     {
         GameState->HeroFacingDirection = 1;
-        dPlayer.X = Delta;
+        ddPlayer.X = Delta;
     }
 
-    if (dPlayer.X != 0.0f && dPlayer.Y != 0.0f)
+    if (ddPlayer.X != 0.0f && ddPlayer.Y != 0.0f)
     {       
-        dPlayer *= 0.707106781187f;
+        ddPlayer *= 0.707106781187f;
     }
-    
-    NewPlayerPos += dPlayer;
+    real32 PlayerSpeed = 10.0f;
+    ddPlayer *= PlayerSpeed;
 
+    // ODE should be here
+    ddPlayer += -2.0f*GameState->dPlayer;
+    
+    v2 NewPlayerPos = GameState->PlayerP.RelTile;
+    NewPlayerPos = 0.5f * ddPlayer * powf((real32)Input->SecondsToAdvance, 2.0f)
+                 + GameState->dPlayer * (real32)Input->SecondsToAdvance
+                 + NewPlayerPos; // new_p = 0.5*a*t^2 + v*t + p
+    GameState->dPlayer = ddPlayer * (real32)Input->SecondsToAdvance + GameState->dPlayer; // v = a*t + p
     if (NewPlayerPos.X != GameState->PlayerP.RelTile.X || NewPlayerPos.Y != GameState->PlayerP.RelTile.Y)
     {
         tile_map_postition BottomLeft = GameState->PlayerP;
