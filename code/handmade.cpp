@@ -485,6 +485,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
             GameState->PlayerP = TopRight;
         }
+        else
+        {
+            // TODO: this simulation of only bottom collision,
+            // need to implement collision from any side
+            v2 r = {0.0f, 1.0f};
+            GameState->dPlayer = GameState->dPlayer - 2*Inner(GameState->dPlayer, r) * r;
+        }
+        
 
         v2 Diff = Substract(TileMap, &GameState->PlayerP, &GameState->CameraP);
         if (Diff.X > 9.0 * TileMap->TileSideInMeters)
