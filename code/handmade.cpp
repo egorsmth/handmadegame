@@ -456,6 +456,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GameState->dPlayer = ddPlayer * (real32)Input->SecondsToAdvance + GameState->dPlayer; // v = a*t + p
     if (NewPlayerPos.X != GameState->PlayerP.RelTile.X || NewPlayerPos.Y != GameState->PlayerP.RelTile.Y)
     {
+        #if 0
         tile_map_postition BottomLeft = GameState->PlayerP;
         BottomLeft.RelTile.X = NewPlayerPos.X - 0.5f*PlayerWidth;
         BottomLeft.RelTile.Y = NewPlayerPos.Y;
@@ -492,8 +493,37 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             v2 r = {0.0f, 1.0f};
             GameState->dPlayer = GameState->dPlayer - 2*Inner(GameState->dPlayer, r) * r;
         }
-        
+        #else
+        tile_map_postition BottomLeft = GameState->PlayerP;
+        BottomLeft.RelTile.X = NewPlayerPos.X - 0.5f*PlayerWidth;
+        BottomLeft.RelTile.Y = NewPlayerPos.Y;
 
+        tile_map_postition BestPlayerP = GameState->PlayerP;
+        real32 BestDistanceSq = LenghtSq(PlayerDelta);
+        for (uint32 AnsTileX = MinTileX; AnsTileX != OnePastTileX; AnsTileX++)
+        {
+            for (uint32 AnsTileY = MinTileX; AnsTileY != OnePastTileY; AnsTileY++)
+            {
+                tile_map_postition Pos = {};
+                uint32 TileValue = GetTileValue(TileMap, &Pos);
+                if (IsTileEmpty(TileValue))
+                {
+                    v2 MinCorner = ;
+                    v2 MaxCorner = ;
+                    
+                    v2 RelNewPlayerP = Substract(TileMap, &Pos, &BottomLeft);
+                    v2 TestP = ClosesPointInRectangle(MinCorner, MaxCorner, RelNewPlayerP);
+                    real32 TestDistanceSq = LengthSq(TestP);
+                    if (BestDistanceSq < TestDistanceSq)
+                    {
+                        BestPlayerP = TestP;
+                        BestDistanceSq = TestDistanceSq;
+                    }
+                }
+            }
+        }
+        
+        #endif
         v2 Diff = Substract(TileMap, &GameState->PlayerP, &GameState->CameraP);
         if (Diff.X > 9.0 * TileMap->TileSideInMeters)
         {
