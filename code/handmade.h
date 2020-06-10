@@ -169,6 +169,9 @@ GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 #include "handmade_math.h"
 #include "tile.h"
 
+#define Minimum(A, B) ((A > B) ? (B) : (A))
+#define Maximum(A, B) ((A < B) ? (B) : (A))
+
 struct memory_arena
 {
     memory_index Size;

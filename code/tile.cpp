@@ -85,11 +85,16 @@ internal uint32 GetTileValue(tile_map *TileMap, tile_map_postition *Pos)
     return Value;
 }
 
+bool IsTileValueEmpty(uint32 Tile)
+{
+    return Tile != 2;
+}
+
 bool CanMove(tile_map *TileMap, tile_map_postition *Pos)
 {
     uint32 Tile = GetTileValue(TileMap, Pos);
     
-    return Tile != 2;
+    return IsTileValueEmpty(Tile);
 }
 
 inline void RecanonicalazeCoord(tile_map *TileMap, uint32 *Tile, real32 *TileRel)

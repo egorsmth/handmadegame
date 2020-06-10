@@ -248,6 +248,11 @@ internal void DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, v
     }
 }
 
+internal void MovePlayer(game_state *GameState, real32 dt, v2 ddP)
+{
+
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -439,22 +444,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         ddPlayer.X = Delta;
     }
 
-    if (ddPlayer.X != 0.0f && ddPlayer.Y != 0.0f)
+    real32 ddPLength = LengthSq(ddPlayer);
+    if (ddPLength > 1.0f)
     {       
-        ddPlayer *= 0.707106781187f;
+        ddPlayer *= (1.0f / sqrtf(ddPLength));
     }
     real32 PlayerSpeed = 10.0f;
     ddPlayer *= PlayerSpeed;
 
     // ODE should be here
     ddPlayer += -2.0f*GameState->dPlayer;
-    
-    v2 NewPlayerPos = GameState->PlayerP.RelTile;
-    NewPlayerPos = 0.5f * ddPlayer * powf((real32)Input->SecondsToAdvance, 2.0f)
-                 + GameState->dPlayer * (real32)Input->SecondsToAdvance
-                 + NewPlayerPos; // new_p = 0.5*a*t^2 + v*t + p
-    GameState->dPlayer = ddPlayer * (real32)Input->SecondsToAdvance + GameState->dPlayer; // v = a*t + p
-    if (NewPlayerPos.X != GameState->PlayerP.RelTile.X || NewPlayerPos.Y != GameState->PlayerP.RelTile.Y)
+    real32 dt = (real32)Input->SecondsToAdvance;
+    tile_map_postition OldPlayerP = GameState->PlayerP;
+    tile_map_postition NewPlayerP = OldPlayerP;
+    v2 PlayerDelta = GameState->PlayerP.RelTile;
+    PlayerDelta = 0.5f * ddPlayer * powf(dt, 2.0f)
+                 + GameState->dPlayer * dt;
+    NewPlayerP.RelTile += PlayerDelta; // new_p = 0.5*a*t^2 + v*t + p
+    GameState->dPlayer = ddPlayer * dt + GameState->dPlayer; // v = a*t + p
+    RecanonicalizePostion(TileMap, &NewPlayerP);
+
+    if (NewPlayerP.RelTile.X != GameState->PlayerP.RelTile.X
+     || NewPlayerP.RelTile.Y != GameState->PlayerP.RelTile.Y)
     {
         #if 0
         tile_map_postition BottomLeft = GameState->PlayerP;
@@ -494,31 +505,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             GameState->dPlayer = GameState->dPlayer - 2*Inner(GameState->dPlayer, r) * r;
         }
         #else
-        tile_map_postition BottomLeft = GameState->PlayerP;
-        BottomLeft.RelTile.X = NewPlayerPos.X - 0.5f*PlayerWidth;
-        BottomLeft.RelTile.Y = NewPlayerPos.Y;
+        uint32 MinTileX = Minimum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX);
+        uint32 MinTileY = Minimum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY);
+        uint32 OnePastTileX = Maximum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX) + 1;
+        uint32 OnePastTileY = Maximum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY) + 1;
 
         tile_map_postition BestPlayerP = GameState->PlayerP;
-        real32 BestDistanceSq = LenghtSq(PlayerDelta);
-        for (uint32 AnsTileX = MinTileX; AnsTileX != OnePastTileX; AnsTileX++)
+        real32 tMin = 1.0f;
+        for (uint32 AbsTileX = MinTileX; AbsTileX != OnePastTileX; AbsTileX++)
         {
-            for (uint32 AnsTileY = MinTileX; AnsTileY != OnePastTileY; AnsTileY++)
+            for (uint32 AbsTileY = MinTileY; AbsTileY != OnePastTileY; AbsTileY++)
             {
-                tile_map_postition Pos = {};
-                uint32 TileValue = GetTileValue(TileMap, &Pos);
-                if (IsTileEmpty(TileValue))
+                tile_map_postition TestPlayerP = CenteredTilePoint(AbsTileX, AbsTileY, OldPlayerP.AbsTileZ);
+                uint32 TileValue = GetTileValue(TileMap, &TestPlayerP);
+                if (!IsTileValueEmpty(TileValue))
                 {
-                    v2 MinCorner = ;
-                    v2 MaxCorner = ;
+                    v2 MinCorner = -0.5f*V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
+                    v2 MaxCorner = 0.5f*V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
                     
-                    v2 RelNewPlayerP = Substract(TileMap, &Pos, &BottomLeft);
-                    v2 TestP = ClosesPointInRectangle(MinCorner, MaxCorner, RelNewPlayerP);
-                    real32 TestDistanceSq = LengthSq(TestP);
-                    if (BestDistanceSq < TestDistanceSq)
-                    {
-                        BestPlayerP = TestP;
-                        BestDistanceSq = TestDistanceSq;
-                    }
+                    v2 RelNewPlayerP = Substract(TileMap, &TestPlayerP, &NewPlayerP);
+                    tResult = (WallX - RelNewPlayerP.X) / PlayerDelta.X;
+                    TestWall(MinCorner.X, MinCorner.Y, MaxCorner.Y, RelNewPlayerP.X);
                 }
             }
         }
