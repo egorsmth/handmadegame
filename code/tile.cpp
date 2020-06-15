@@ -168,3 +168,14 @@ inline v2 Substract(tile_map *TileMap, tile_map_postition *A, tile_map_postition
     Diff = TileMap->TileSideInMeters * DTile  + (A->RelTile - B->RelTile);
     return Diff;
 }
+
+inline tile_map_postition CenteredTilePoint(uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
+{
+    tile_map_postition Result = {};
+
+    Result.AbsTileX = AbsTileX;
+    Result.AbsTileY = AbsTileY;
+    Result.AbsTileZ = AbsTileZ;
+
+    return Result;
+}

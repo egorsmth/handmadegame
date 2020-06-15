@@ -253,6 +253,29 @@ internal void MovePlayer(game_state *GameState, real32 dt, v2 ddP)
 
 }
 
+internal void 
+TestWall(
+    real32 WallX, real32 MaxY, 
+    real32 MinY, 
+    real32 PlayerDeltaX, real32 PlayerDeltaY,
+    real32 RelX, real32 RelY, 
+    real32 *tMin)
+{
+    real32 eps = 0.0001f;
+    if (PlayerDeltaX != 0.0f)
+    {
+        real32 tResult = (WallX - RelX) / PlayerDeltaX;
+        real32 Y = RelY + tResult * PlayerDeltaY;
+        if ((Y >= MinY) && (Y <= MaxY))
+        {
+            if (*tMin > tResult && tResult >= 0.0f)
+            {
+                *tMin = Maximum(0.0f, tResult - eps);
+            }
+        }
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -461,8 +484,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     PlayerDelta = 0.5f * ddPlayer * powf(dt, 2.0f)
                  + GameState->dPlayer * dt;
     NewPlayerP.RelTile += PlayerDelta; // new_p = 0.5*a*t^2 + v*t + p
-    GameState->dPlayer = ddPlayer * dt + GameState->dPlayer; // v = a*t + p
     RecanonicalizePostion(TileMap, &NewPlayerP);
+    GameState->dPlayer = ddPlayer * dt + GameState->dPlayer; // v = a*t + p
 
     if (NewPlayerP.RelTile.X != GameState->PlayerP.RelTile.X
      || NewPlayerP.RelTile.Y != GameState->PlayerP.RelTile.Y)
@@ -510,7 +533,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 OnePastTileX = Maximum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX) + 1;
         uint32 OnePastTileY = Maximum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY) + 1;
 
-        tile_map_postition BestPlayerP = GameState->PlayerP;
         real32 tMin = 1.0f;
         for (uint32 AbsTileX = MinTileX; AbsTileX != OnePastTileX; AbsTileX++)
         {
@@ -520,17 +542,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 uint32 TileValue = GetTileValue(TileMap, &TestPlayerP);
                 if (!IsTileValueEmpty(TileValue))
                 {
-                    v2 MinCorner = -0.5f*V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
-                    v2 MaxCorner = 0.5f*V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
+                    v2 MinCorner = -0.5f * V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
+                    v2 MaxCorner = 0.5f  * V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
                     
-                    v2 RelNewPlayerP = Substract(TileMap, &TestPlayerP, &NewPlayerP);
-                    tResult = (WallX - RelNewPlayerP.X) / PlayerDelta.X;
-                    TestWall(MinCorner.X, MinCorner.Y, MaxCorner.Y, RelNewPlayerP.X);
+                    v2 Rel = Substract(TileMap, &OldPlayerP, &TestPlayerP);
+
+                    TestWall(MaxCorner.X, MaxCorner.Y, MinCorner.Y, PlayerDelta.X, PlayerDelta.Y, 
+                            Rel.X, Rel.Y, &tMin);
+                    TestWall(MinCorner.X, MaxCorner.Y, MinCorner.Y, PlayerDelta.X, PlayerDelta.Y, 
+                            Rel.X, Rel.Y, &tMin);
+                    TestWall(MaxCorner.Y, MaxCorner.X, MinCorner.X, PlayerDelta.Y, PlayerDelta.X, 
+                            Rel.Y, Rel.X, &tMin);
+                    TestWall(MinCorner.Y, MaxCorner.X, MinCorner.X, PlayerDelta.Y, PlayerDelta.X, 
+                            Rel.Y, Rel.X, &tMin);
                 }
             }
         }
-        
+        NewPlayerP = OldPlayerP;
+        NewPlayerP.RelTile += tMin*PlayerDelta;
+        RecanonicalizePostion(TileMap, &NewPlayerP);
         #endif
+        
         if (!IsOnSameTile(&OldPlayerP, &NewPlayerP))
         {
             uint32 TileValue = GetTileValue(TileMap, &NewPlayerP);
