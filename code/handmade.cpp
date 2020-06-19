@@ -254,34 +254,31 @@ internal void MovePlayer(game_state *GameState, real32 dt, v2 ddP)
 }
 
 internal void 
-TestWall(
-    real32 WallX, real32 MaxY, 
-    real32 MinY, 
-    real32 PlayerDeltaX, real32 PlayerDeltaY,
-    real32 RelX, real32 RelY, 
-    real32 *tMin)
+TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 PlayerDeltaY,
+         real32 *tMin, real32 MinY, real32 MaxY)
 {
-    real32 eps = 0.0001f;
-    if (PlayerDeltaX != 0.0f)
+    real32 tEpsilon = 0.001f;
+    if(PlayerDeltaX != 0.0f)
     {
         real32 tResult = (WallX - RelX) / PlayerDeltaX;
-        real32 Y = RelY + tResult * PlayerDeltaY;
-        if ((Y >= MinY) && (Y <= MaxY))
+        real32 Y = RelY + tResult*PlayerDeltaY;
+        if((tResult >= 0.0f) && (*tMin > tResult))
         {
-            if (*tMin > tResult && tResult >= 0.0f)
+            if((Y >= MinY) && (Y <= MaxY))
             {
-                *tMin = Maximum(0.0f, tResult - eps);
+                *tMin = Maximum(0.0f, tResult - tEpsilon);
             }
         }
     }
+
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
-    real32 PlayerHeight = 1.4f;
-    real32 PlayerWidth = 0.5f * PlayerHeight;
+    real32 PlayerHeight = 0.4f;
+    real32 PlayerWidth = 0.7f;
         
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->isInitialized)
@@ -472,11 +469,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {       
         ddPlayer *= (1.0f / sqrtf(ddPLength));
     }
-    real32 PlayerSpeed = 10.0f;
+    real32 PlayerSpeed = 50.0f;
     ddPlayer *= PlayerSpeed;
 
     // ODE should be here
-    ddPlayer += -2.0f*GameState->dPlayer;
+    ddPlayer += -8.0f*GameState->dPlayer;
     real32 dt = (real32)Input->SecondsToAdvance;
     tile_map_postition OldPlayerP = GameState->PlayerP;
     tile_map_postition NewPlayerP = OldPlayerP;
@@ -485,7 +482,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                  + GameState->dPlayer * dt;
     NewPlayerP.RelTile += PlayerDelta; // new_p = 0.5*a*t^2 + v*t + p
     RecanonicalizePostion(TileMap, &NewPlayerP);
-    GameState->dPlayer = ddPlayer * dt + GameState->dPlayer; // v = a*t + p
 
     if (NewPlayerP.RelTile.X != GameState->PlayerP.RelTile.X
      || NewPlayerP.RelTile.Y != GameState->PlayerP.RelTile.Y)
@@ -530,33 +526,51 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         #else
         uint32 MinTileX = Minimum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX);
         uint32 MinTileY = Minimum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY);
-        uint32 OnePastTileX = Maximum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX) + 1;
-        uint32 OnePastTileY = Maximum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY) + 1;
+        uint32 MaxTileX = Maximum(NewPlayerP.AbsTileX, OldPlayerP.AbsTileX);
+        uint32 MaxTileY = Maximum(NewPlayerP.AbsTileY, OldPlayerP.AbsTileY);
+
+        uint32 EntityTileWidth = (uint32)ceilf(PlayerWidth / TileMap->TileSideInMeters);
+        uint32 EntityTileHeight = (uint32)ceilf(PlayerHeight / TileMap->TileSideInMeters);
+
+        MinTileX -= EntityTileWidth;
+        MinTileY -= EntityTileHeight;
+        MaxTileX += EntityTileWidth;
+        MaxTileY += EntityTileHeight;
 
         real32 tMin = 1.0f;
-        for (uint32 AbsTileX = MinTileX; AbsTileX != OnePastTileX; AbsTileX++)
+
+        for (uint32 AbsTileX = MinTileX; AbsTileX <= MaxTileX; AbsTileX++)
         {
-            for (uint32 AbsTileY = MinTileY; AbsTileY != OnePastTileY; AbsTileY++)
+            for (uint32 AbsTileY = MinTileY; AbsTileY <= MaxTileY; AbsTileY++)
             {
                 tile_map_postition TestPlayerP = CenteredTilePoint(AbsTileX, AbsTileY, OldPlayerP.AbsTileZ);
                 uint32 TileValue = GetTileValue(TileMap, &TestPlayerP);
                 if (!IsTileValueEmpty(TileValue))
                 {
-                    v2 MinCorner = -0.5f * V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
-                    v2 MaxCorner = 0.5f  * V2(TileMap->TileSideInMeters, TileMap->TileSideInMeters);
-                    
+                    real32 DiameterW = TileMap->TileSideInMeters + PlayerWidth;
+                    real32 DiameterH = TileMap->TileSideInMeters + PlayerHeight;
+                    v2 MinCorner = -0.5f * V2(DiameterW, DiameterH);
+                    v2 MaxCorner = 0.5f  * V2(DiameterW, DiameterH);
+
                     v2 Rel = Substract(TileMap, &OldPlayerP, &TestPlayerP);
 
-                    TestWall(MaxCorner.X, MaxCorner.Y, MinCorner.Y, PlayerDelta.X, PlayerDelta.Y, 
-                            Rel.X, Rel.Y, &tMin);
-                    TestWall(MinCorner.X, MaxCorner.Y, MinCorner.Y, PlayerDelta.X, PlayerDelta.Y, 
-                            Rel.X, Rel.Y, &tMin);
-                    TestWall(MaxCorner.Y, MaxCorner.X, MinCorner.X, PlayerDelta.Y, PlayerDelta.X, 
-                            Rel.Y, Rel.X, &tMin);
-                    TestWall(MinCorner.Y, MaxCorner.X, MinCorner.X, PlayerDelta.Y, PlayerDelta.X, 
-                            Rel.Y, Rel.X, &tMin);
+                    TestWall(MinCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
+                            &tMin, MinCorner.Y, MaxCorner.Y);
+                    TestWall(MaxCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
+                            &tMin, MinCorner.Y, MaxCorner.Y);
+                    TestWall(MinCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
+                            &tMin, MinCorner.X, MaxCorner.X);
+                    TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
+                            &tMin, MinCorner.X, MaxCorner.X);
                 }
             }
+        }
+
+        GameState->dPlayer = ddPlayer * dt + GameState->dPlayer; // v = a*t + p
+
+        if (tMin < 1.0f)
+        {
+            GameState->dPlayer = V2(0,0);
         }
         NewPlayerP = OldPlayerP;
         NewPlayerP.RelTile += tMin*PlayerDelta;
@@ -615,7 +629,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 ViewCenter.X - (real32)TileMap->PixPerMeter * GameState->CameraP.RelTile.X + ((real32)RelCol)*TileMap->TileSideInPixels, 
                 ViewCenter.Y + (real32)TileMap->PixPerMeter * GameState->CameraP.RelTile.Y - ((real32)RelRow)*TileMap->TileSideInPixels
             );
-            v2 TileSide = V2(0.5f * TileMap->TileSideInPixels, 0.5f * TileMap->TileSideInPixels);
+            v2 TileSide = 0.9f* V2(0.5f * TileMap->TileSideInPixels, 0.5f * TileMap->TileSideInPixels);
             v2 Min = tileCenter - TileSide;
             v2 Max = tileCenter + TileSide;
             uint32 Val = GetTileValue(TileMap, Col, Row, GameState->CameraP.AbsTileZ);
@@ -669,17 +683,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 PlayerG = 1.0f;
     real32 PlayerB = 0.0f;
     v2 PlayerTopLeft = V2(
-        ViewCenter.X + (real32)TileMap->PixPerMeter * Diff.X - PlayerWidth*TileMap->PixPerMeter*0.5f,
-        ViewCenter.Y - (real32)TileMap->PixPerMeter * Diff.Y - PlayerHeight*TileMap->PixPerMeter
+        ViewCenter.X + (real32)TileMap->PixPerMeter * Diff.X - 0.5f*PlayerWidth*TileMap->PixPerMeter,
+        ViewCenter.Y - (real32)TileMap->PixPerMeter * Diff.Y - 0.5f*PlayerHeight*TileMap->PixPerMeter
     );
     v2 PixPerMeter = V2(PlayerWidth*TileMap->PixPerMeter, PlayerHeight*TileMap->PixPerMeter);
     DrawRectangle(Buffer, PlayerTopLeft, 
                 PlayerTopLeft + PixPerMeter,
                 PlayerR, PlayerG, PlayerB);
     hero_bitmaps HeroBitmaps = GameState->HeroBitmap[GameState->HeroFacingDirection];
-    DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerTopLeft);
-    DrawBitmap(Buffer, &HeroBitmaps.Body, PlayerTopLeft);
-    DrawBitmap(Buffer, &HeroBitmaps.Head, PlayerTopLeft);
+    v2 PlayerBitmapTopLeft = PlayerTopLeft + V2(
+        -0.4f*(real32)HeroBitmaps.Body.Width,
+        -0.8f*(real32)HeroBitmaps.Body.Height);
+    DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerBitmapTopLeft);
+    DrawBitmap(Buffer, &HeroBitmaps.Body, PlayerBitmapTopLeft);
+    DrawBitmap(Buffer, &HeroBitmaps.Head, PlayerBitmapTopLeft);
 
    // DrawPoint(Buffer, PlayerLeft + 1, PlayerTop + 1, 1.0, 0.0, 0.0);
 }
