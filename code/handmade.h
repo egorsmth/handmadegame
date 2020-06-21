@@ -198,15 +198,21 @@ struct hero_bitmaps
     loaded_bitmap Legs;
 };
 
+struct entity
+{
+    tile_map_postition P;
+    v2 dP;
+    uint32 FacingDirection;
+    real32 Width, Height;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
     world *World;
-    tile_map_postition PlayerP;
-    v2 dPlayer;
+    entity Player;
     tile_map_postition CameraP;
     loaded_bitmap Backdrop;
-    uint32 HeroFacingDirection;
     hero_bitmaps HeroBitmap[4];
 };
 
