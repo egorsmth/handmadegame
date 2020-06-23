@@ -203,6 +203,7 @@ struct hot_entity
     bool Exist;
     v2 P; // relative to the camera
     v2 dP;
+    uint32 AbsTileZ;
     uint32 FacingDirection;
 };
 
@@ -216,15 +217,24 @@ struct dormant_entity
 {
     tile_map_postition P;
     real32 Width, Height;
+    int32 dAbsTileZ;
+    bool Collides;
 };
 
-struct entity_residency
+enum entity_residency
 {
-    bool Hot;
-    bool Cold;
-    bool Dormnant;
+    EntityResidency_Hot,
+    EntityResidency_Cold,
+    EntityResidency_Dormnant
 };
 
+struct entity
+{
+    entity_residency Residency;
+    hot_entity *Hot;
+    cold_entity *Cold;
+    dormant_entity *Dormant;
+};
 
 struct game_state
 {

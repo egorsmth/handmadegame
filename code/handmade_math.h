@@ -85,7 +85,7 @@ inline v2 operator-(v2 A, v2 B)
 
 inline v2 &v2::operator-=(v2 A)
 {
-    *this = A - *this;
+    *this = *this - A;
     return *this;
 }
 

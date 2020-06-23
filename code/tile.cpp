@@ -107,12 +107,24 @@ inline void RecanonicalazeCoord(tile_map *TileMap, uint32 *Tile, real32 *TileRel
     Assert(*TileRel <= 0.5f*TileMap->TileSideInMeters);
 }
 
-inline void RecanonicalizePostion(tile_map *World, tile_map_postition *Pos)
+// inline void RecanonicalizePostion(tile_map *World, tile_map_postition *Pos)
+// {
+//     RecanonicalazeCoord(World, 
+//         &Pos->AbsTileX, &Pos->RelTile.X);
+//     RecanonicalazeCoord(World, 
+//         &Pos->AbsTileY, &Pos->RelTile.Y);
+// }
+
+inline tile_map_postition
+MapIntoTileSpace(tile_map *TileMap, tile_map_postition BasePos, v2 Offset)
 {
-    RecanonicalazeCoord(World, 
-        &Pos->AbsTileX, &Pos->RelTile.X);
-    RecanonicalazeCoord(World, 
-        &Pos->AbsTileY, &Pos->RelTile.Y);
+    tile_map_postition Result = BasePos;
+    Result.RelTile += Offset;
+    RecanonicalazeCoord(TileMap, 
+        &Result.AbsTileX, &Result.RelTile.X);
+    RecanonicalazeCoord(TileMap, 
+        &Result.AbsTileY, &Result.RelTile.Y);
+    return Result;
 }
 
 inline void SetTileValue(memory_arena *Arena, tile_map *TileMap, 
