@@ -198,6 +198,12 @@ struct hero_bitmaps
     loaded_bitmap Legs;
 };
 
+enum entity_type
+{
+    EntityType_Player,
+    EntityType_Wall
+};
+
 struct hot_entity
 {
     bool Exist;
@@ -215,6 +221,7 @@ struct cold_entity
 
 struct dormant_entity
 {
+    entity_type Type;
     tile_map_postition P;
     real32 Width, Height;
     int32 dAbsTileZ;
@@ -241,11 +248,12 @@ struct game_state
     memory_arena WorldArena;
     world *World;
 
+    uint32 PlayerEntityIndex;
     uint32 EntityCount;
-    entity_residency EntityResidency[256];
-    hot_entity HotEntity[256];
-    cold_entity ColdEntiyy[256];
-    dormant_entity DormantEntity[256];
+    entity_residency EntityResidency[5256];
+    hot_entity HotEntity[5256];
+    cold_entity ColdEntiyy[5256];
+    dormant_entity DormantEntity[5256];
 
     tile_map_postition CameraP;
     loaded_bitmap Backdrop;

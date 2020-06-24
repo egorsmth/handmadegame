@@ -101,5 +101,40 @@ inline real32 LengthSq(v2 A)
     return Result;
 }
 
+struct rectangle2
+{
+    v2 TopLeft;
+    v2 BottomRight;
+};
+
+inline rectangle2
+RectCenterHalfDim(v2 Center, v2 HalfDim)
+{
+    rectangle2 Rect;
+    Rect.TopLeft = Center - HalfDim;
+    Rect.BottomRight = Center + HalfDim;
+    return Rect;
+}
+
+inline rectangle2
+RectCenterDim(v2 Center, v2 Dim)
+{
+    rectangle2 Rect = RectCenterHalfDim(Center, 0.5f*Dim);
+    return Rect;
+}
+
+inline bool 
+IsInRectangle(rectangle2 Rect, v2 Test)
+{
+    bool Result = (
+        (Test.X >= Rect.TopLeft.X) &&
+        (Test.X < Rect.BottomRight.X) &&
+        (Test.Y >= Rect.TopLeft.Y) &&
+        (Test.Y < Rect.BottomRight.Y)
+    );
+    return Result;
+}
+
+
 #define HANDMADE_MATH_H
 #endif
