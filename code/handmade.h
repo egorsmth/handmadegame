@@ -213,13 +213,7 @@ struct hot_entity
     uint32 FacingDirection;
 };
 
-
 struct cold_entity
-{
-    /* data */
-};
-
-struct dormant_entity
 {
     entity_type Type;
     tile_map_postition P;
@@ -232,7 +226,6 @@ enum entity_residency
 {
     EntityResidency_Hot,
     EntityResidency_Cold,
-    EntityResidency_Dormnant
 };
 
 struct entity
@@ -240,7 +233,6 @@ struct entity
     entity_residency Residency;
     hot_entity *Hot;
     cold_entity *Cold;
-    dormant_entity *Dormant;
 };
 
 struct game_state
@@ -251,9 +243,12 @@ struct game_state
     uint32 PlayerEntityIndex;
     uint32 EntityCount;
     entity_residency EntityResidency[5256];
+
+    uint32 HotEntityCount;
     hot_entity HotEntity[5256];
-    cold_entity ColdEntiyy[5256];
-    dormant_entity DormantEntity[5256];
+
+    uint32 ColdEntityCount;
+    cold_entity ColdEntity[5256];
 
     tile_map_postition CameraP;
     loaded_bitmap Backdrop;
