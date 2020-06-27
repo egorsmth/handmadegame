@@ -5,7 +5,8 @@
 
 #include <cstdlib>
 
-internal void DrawPoint(game_offscreen_buffer *Buffer,
+internal void 
+DrawPoint(game_offscreen_buffer *Buffer,
                         real32 RealX, real32 RealY,
                         real32 R, real32 G, real32 B)
 {
@@ -47,10 +48,11 @@ internal void DrawPoint(game_offscreen_buffer *Buffer,
     *Pixel = Color;
 }
 
-internal void DrawRectangle(game_offscreen_buffer *Buffer,
-                            v2 vMin,
-                            v2 vMax,
-                            real32 R, real32 G, real32 B)
+internal void 
+DrawRectangle(game_offscreen_buffer *Buffer,
+            v2 vMin,
+            v2 vMax,
+            real32 R, real32 G, real32 B)
 {
     int32 MinX = RoundReal32toInt32(vMin.X);
     int32 MaxX = RoundReal32toInt32(vMax.X);
@@ -128,7 +130,8 @@ struct bitmap_header
 };
 #pragma pack(pop)
 
-internal loaded_bitmap DEBUGLoadBMP(
+internal loaded_bitmap 
+DEBUGLoadBMP(
     thread_context *Thread,
     debug_platform_read_entire_file *ReadEntireFile, char *Filename)
 {
@@ -171,7 +174,8 @@ internal loaded_bitmap DEBUGLoadBMP(
     return Bitmap;
 }
 
-internal void InitializeArena(memory_arena *Arena,
+internal void 
+InitializeArena(memory_arena *Arena,
                 memory_index Size, uint8 *Base)
 {
     Arena->Size = Size;
@@ -179,7 +183,8 @@ internal void InitializeArena(memory_arena *Arena,
     Arena->Used = 0;
 }
 
-internal void DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, v2 Coord)
+internal void 
+DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, v2 Coord)
 {
     int32 MinX = RoundReal32toInt32(Coord.X);
     int32 MaxX = RoundReal32toInt32(Coord.X + (real32)Bitmap->Width);
@@ -248,11 +253,6 @@ internal void DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, v
     }
 }
 
-internal void MovePlayer(game_state *GameState, real32 dt, v2 ddP)
-{
-
-}
-
 internal void 
 TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 PlayerDeltaY,
          real32 *tMin, real32 MinY, real32 MaxY)
@@ -273,7 +273,8 @@ TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 Pla
 
 }
 
-bool hasHotEntity(game_state *GameState, uint32 ColdIndex)
+bool 
+hasHotEntity(game_state *GameState, uint32 ColdIndex)
 {
     if (
         (

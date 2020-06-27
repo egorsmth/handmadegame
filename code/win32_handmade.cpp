@@ -24,7 +24,8 @@ X_INPUT_SET_STATE(XInputSetStateStub) {return ERROR_DEVICE_NOT_CONNECTED;}
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-internal void ConcatStrings(
+internal void 
+ConcatStrings(
     size_t SizeA, char *A,
     size_t SizeB, char *B,
     char *Dest
@@ -42,7 +43,8 @@ internal void ConcatStrings(
     *Dest++ = 0;
 }
 
-internal void Win32GetOnePastLastSlash(win32_game_loop *GameState)
+internal void 
+Win32GetOnePastLastSlash(win32_game_loop *GameState)
 {
     GameState->OnePastLastSlashFilename = GameState->MainEXEFileName;
     for (char *Scan = GameState->MainEXEFileName; *Scan; ++Scan)
@@ -54,7 +56,8 @@ internal void Win32GetOnePastLastSlash(win32_game_loop *GameState)
     }
 }
 
-internal int StringLength(char *S)
+internal int 
+StringLength(char *S)
 {
     int Count = 0;
     while(*S++)
@@ -64,7 +67,8 @@ internal int StringLength(char *S)
     return Count;
 }
 
-internal void Win32GetFullPath(win32_game_loop *GameState, char *Filename, char* Dest)
+internal void 
+Win32GetFullPath(win32_game_loop *GameState, char *Filename, char* Dest)
 {
     ConcatStrings(
         GameState->OnePastLastSlashFilename - GameState->MainEXEFileName,
@@ -132,7 +136,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     return Result;
 }
 
-inline FILETIME Win32GetLastWriteTime(char *Filename)
+inline FILETIME 
+Win32GetLastWriteTime(char *Filename)
 {
     FILETIME ft = {};
     WIN32_FILE_ATTRIBUTE_DATA ad = {};
@@ -143,7 +148,8 @@ inline FILETIME Win32GetLastWriteTime(char *Filename)
     return ft;
 }
 
-internal win32_game_code Win32LoadGameCode(char *SourceDLL, char* TempDLL)
+internal win32_game_code 
+Win32LoadGameCode(char *SourceDLL, char* TempDLL)
 {
     win32_game_code Result = {};   
     CopyFile(SourceDLL, TempDLL, FALSE);
@@ -170,7 +176,8 @@ internal win32_game_code Win32LoadGameCode(char *SourceDLL, char* TempDLL)
     return Result;
 }
 
-internal void Win32UnloadGameCode(win32_game_code *GameCode)
+internal void 
+Win32UnloadGameCode(win32_game_code *GameCode)
 {
     if (GameCode->GameCodeDLL)
     {
@@ -203,7 +210,8 @@ internal void Win32LoadXInput(void)
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
-internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
+internal void 
+Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
 {
     HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
     if (DSoundLibrary)
@@ -269,7 +277,8 @@ internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferS
     
 }
 
-internal void Win32ClearSoundBuffer(win32_sound_output *SoundOutput)
+internal void 
+Win32ClearSoundBuffer(win32_sound_output *SoundOutput)
 {
     VOID *Region1;
     DWORD Region1Size;
@@ -301,7 +310,8 @@ internal void Win32ClearSoundBuffer(win32_sound_output *SoundOutput)
     }
 }
 
-internal void Win32FillSoundBuffer(
+internal void 
+Win32FillSoundBuffer(
     win32_sound_output *SoundOutput,
     DWORD ByteToLock,
     DWORD BytesToWrite,
@@ -343,13 +353,15 @@ internal void Win32FillSoundBuffer(
     }
 }
 
-internal void Win32ProcessKeyboardEvent(game_button_state *NewState, bool IsDown)
+internal void 
+Win32ProcessKeyboardEvent(game_button_state *NewState, bool IsDown)
 {
     NewState->EndedDown = IsDown;
     ++NewState->HalfTransitionCount;
 }
 
-internal void Win32ResizeDIBSection(
+internal void 
+Win32ResizeDIBSection(
     win32_offscreen_buffer *Buffer, 
     int width, int height)
 {
@@ -372,7 +384,8 @@ internal void Win32ResizeDIBSection(
     Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void Win32DisplayBufferWindow(
+internal void 
+Win32DisplayBufferWindow(
     win32_offscreen_buffer *Buffer,
     HDC DeviceContext,
     int Width, int Height) 
@@ -400,7 +413,8 @@ internal void Win32DisplayBufferWindow(
     }
 }
 
-internal win32_window_dims Win32GetWindowDims(HWND WindowHandler)
+internal win32_window_dims 
+Win32GetWindowDims(HWND WindowHandler)
 {
     HDC DeviceContext = GetDC(WindowHandler);
     RECT WindowRect;
@@ -412,7 +426,8 @@ internal win32_window_dims Win32GetWindowDims(HWND WindowHandler)
 }
 
 global_variable WINDOWPLACEMENT g_wpPrev = { sizeof(g_wpPrev) };
-internal void Win32TogleFullScreen(HWND hwnd)
+internal void 
+Win32TogleFullScreen(HWND hwnd)
 {
     DWORD dwStyle = GetWindowLong(hwnd, GWL_STYLE);
     if (dwStyle & WS_OVERLAPPEDWINDOW)
