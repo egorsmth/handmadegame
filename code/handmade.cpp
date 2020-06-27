@@ -273,43 +273,82 @@ TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 Pla
 
 }
 
-internal
-entity GetEntity(game_state *GameState, uint32 idx)
+bool hasHotEntity(game_state *GameState, uint32 ColdIndex)
+{
+    if (
+        (
+            ColdIndex == GameState->PlayerEntityIndex && 
+            GameState->HotEntityCount > 0
+        ) || 
+        GameState->ColdEntity[ColdIndex].HotIndex)
+    {
+        return true;
+    }
+    return false;
+}
+
+internal entity
+GetEntity(game_state *GameState, uint32 idx)
 {
     entity Entity = {};
-    Entity.Hot = &GameState->HotEntity[idx];
-    Entity.Cold = &GameState->ColdEntity[idx];
-    Entity.Residency = GameState->EntityResidency[idx];
+    if (idx < GameState->ColdEntityCount)
+    {
+        Entity.Cold = &GameState->ColdEntity[idx];
+        if (hasHotEntity(GameState, idx))
+        {
+            Entity.Hot = &GameState->HotEntity[Entity.Cold->HotIndex];
+        }
+    }
+    
     return Entity;
 }
 
 internal uint32
 AddEntity(game_state *GameState)
 {
-    uint32 idx = GameState->EntityCount;
-    GameState->EntityResidency[idx] = EntityResidency_Cold;
-    GameState->HotEntity[idx] = {};
+    uint32 idx = GameState->ColdEntityCount;
     GameState->ColdEntity[idx] = {};
 
-    GameState->EntityCount++;
+    GameState->ColdEntityCount++;
     return idx;
 }
 
 internal void
-ChangeEntityResidency(game_state *GameState, uint32 idx, entity_residency Residency)
+MakeEntityHot(game_state *GameState, uint32 ColdIdx)
 {
-    if (Residency == EntityResidency_Hot)
+    cold_entity *Cold = &GameState->ColdEntity[ColdIdx];
+    if (!hasHotEntity(GameState, ColdIdx) && GameState->HotEntityCount < ArrayCount(GameState->HotEntity))
     {
-        if (GameState->EntityResidency[idx] != EntityResidency_Hot)
+        uint32 HotIndex = GameState->HotEntityCount++;
+        v2 Diff = Substract(
+            GameState->World->TileMap, 
+            &GameState->CameraP, 
+            &GameState->ColdEntity[ColdIdx].P);
+        GameState->HotEntity[HotIndex].P = Diff;
+        GameState->HotEntity[HotIndex].dP = {0, 0};
+        GameState->HotEntity[HotIndex].AbsTileZ = Cold->P.AbsTileZ;
+        GameState->HotEntity[HotIndex].ColdIndex = ColdIdx;
+        Cold->HotIndex = HotIndex;
+    }
+}
+
+internal void
+MakeEntityCold(game_state *GameState, uint32 ColdIdx)
+{
+    cold_entity *Cold = &GameState->ColdEntity[ColdIdx];
+    if (hasHotEntity(GameState, ColdIdx))
+    {
+        if (Cold->HotIndex == GameState->HotEntityCount - 1)
         {
-            v2 Diff = Substract(
-                GameState->World->TileMap, 
-                &GameState->CameraP, 
-                &GameState->ColdEntity[idx].P);
-            GameState->HotEntity[idx].P = Diff;
-            GameState->HotEntity[idx].dP = {0, 0};
-            GameState->HotEntity[idx].AbsTileZ = GameState->ColdEntity[idx].P.AbsTileZ;
-            GameState->EntityResidency[idx] = EntityResidency_Hot;
+            --GameState->HotEntityCount;
+        }
+        else
+        {
+            hot_entity *Exchanger = &GameState->HotEntity[GameState->HotEntityCount - 1];
+            GameState->HotEntity[Cold->HotIndex] = *Exchanger;
+            GameState->ColdEntity[Exchanger->ColdIndex].HotIndex = Cold->HotIndex;
+            GameState->HotEntityCount--;
+            Cold->HotIndex = NULL;
         }
     }
 }
@@ -326,8 +365,7 @@ InitializePlayer(game_state *GameState)
     Entity.Cold->Height = 0.4f;
     Entity.Cold->Collides = true;
     Entity.Cold->Type = EntityType_Player;
-    ChangeEntityResidency(GameState, 0, EntityResidency_Hot);
-    Entity.Residency = GameState->EntityResidency[idx];
+    MakeEntityHot(GameState, GameState->PlayerEntityIndex);
 }
 
 internal uint32
@@ -356,17 +394,13 @@ SetCamera(game_state *GameState, tile_map_postition NewCameraP)
     rectangle2 CameraBounds = RectCenterDim(
         V2(0,0),
         GameState->World->TileMap->TileSideInMeters*V2((real32)TileXSpan, (real32)TileYSpan));
-    for (uint32 EntityIndex = 0; EntityIndex < ArrayCount(GameState->HotEntity); EntityIndex++)
+    for (uint32 EntityIndex = 0; EntityIndex < GameState->HotEntityCount; EntityIndex++)
     {
-        if (GameState->EntityResidency[EntityIndex] != EntityResidency_Hot)
-        {
-            continue;
-        }
         GameState->HotEntity[EntityIndex].P += Diff;
 
         if (!IsInRectangle(CameraBounds, GameState->HotEntity[EntityIndex].P))
         {
-            ChangeEntityResidency(GameState, EntityIndex, EntityResidency_Cold);
+            MakeEntityCold(GameState, GameState->HotEntity[EntityIndex].ColdIndex);
         }
     }
 
@@ -374,9 +408,9 @@ SetCamera(game_state *GameState, tile_map_postition NewCameraP)
     uint32 MinTileX = NewCameraP.AbsTileX - TileXSpan / 2;
     uint32 MaxTileY = NewCameraP.AbsTileY + TileYSpan / 2;
     uint32 MinTileY = NewCameraP.AbsTileY - TileYSpan / 2;
-    for (uint32 EntityIndex = 0; EntityIndex < ArrayCount(GameState->ColdEntity); EntityIndex++)
+    for (uint32 EntityIndex = 0; EntityIndex < GameState->ColdEntityCount; EntityIndex++)
     {
-        if (GameState->EntityResidency[EntityIndex] != EntityResidency_Hot)
+        if (!hasHotEntity(GameState, EntityIndex))
         {
             cold_entity *Cold = &GameState->ColdEntity[EntityIndex];
             if (
@@ -386,7 +420,7 @@ SetCamera(game_state *GameState, tile_map_postition NewCameraP)
                 (Cold->P.AbsTileY >= MinTileY) &&
                 (Cold->P.AbsTileY <= MaxTileY)
             ) {
-                ChangeEntityResidency(GameState, EntityIndex, EntityResidency_Hot);
+                MakeEntityHot(GameState, EntityIndex);
             }
         }
     }
@@ -606,14 +640,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 HitEntityIndex = 0;
 
         for (uint32 EntityIndex = 0; 
-            EntityIndex < GameState->EntityCount; 
+            EntityIndex < GameState->HotEntityCount; 
             EntityIndex++)
         {
-            if (EntityIndex == GameState->PlayerEntityIndex)
+            entity TestEntity = GetEntity(GameState, GameState->HotEntity[EntityIndex].ColdIndex);
+
+            if (TestEntity.Hot->ColdIndex == GameState->PlayerEntityIndex)
             {
                 continue;
             }
-            entity TestEntity = GetEntity(GameState, EntityIndex);
+            
             if (TestEntity.Cold->Collides)
             {
                 real32 DiameterW = TestEntity.Cold->Width + Player.Cold->Width;
@@ -740,58 +776,55 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    for (uint32 i = 0; i < GameState->EntityCount; i++)
+    for (uint32 i = 0; i < GameState->HotEntityCount; i++)
     {
-        entity Entity = GetEntity(GameState, i);
-        if (Entity.Residency == EntityResidency_Hot)
+        entity Entity = GetEntity(GameState, GameState->HotEntity[i].ColdIndex);
+        if (Entity.Cold->Type == EntityType_Player)
         {
-            if ( Entity.Cold->Type == EntityType_Player)
-            {
-                real32 PlayerR = 1.0f;
-                real32 PlayerG = 1.0f;
-                real32 PlayerB = 0.0f;
-                v2 PlayerTopLeft = V2(
-                    ViewCenter.X 
-                        + (real32)TileMap->PixPerMeter * Entity.Hot->P.X 
-                        - 0.5f*Entity.Cold->Width*TileMap->PixPerMeter,
-                    ViewCenter.Y 
-                        - (real32)TileMap->PixPerMeter * Entity.Hot->P.Y 
-                        - 0.5f*Entity.Cold->Height*TileMap->PixPerMeter
-                );
-                v2 PixPerMeter = V2(
-                    Entity.Cold->Width*TileMap->PixPerMeter, 
-                    Entity.Cold->Height*TileMap->PixPerMeter);
-                DrawRectangle(Buffer, PlayerTopLeft, 
-                            PlayerTopLeft + PixPerMeter,
-                            PlayerR, PlayerG, PlayerB);
-                hero_bitmaps HeroBitmaps = GameState->HeroBitmap[Entity.Hot->FacingDirection];
-                v2 PlayerBitmapTopLeft = PlayerTopLeft + V2(
-                    -0.4f*(real32)HeroBitmaps.Body.Width,
-                    -0.8f*(real32)HeroBitmaps.Body.Height);
-                DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerBitmapTopLeft);
-                DrawBitmap(Buffer, &HeroBitmaps.Body, PlayerBitmapTopLeft);
-                DrawBitmap(Buffer, &HeroBitmaps.Head, PlayerBitmapTopLeft);
-            }
-            if (Entity.Cold->Type == EntityType_Wall)
-            {
-                real32 WallR = 1.0f;
-                real32 WallG = 0.0f;
-                real32 WallB = 1.0f;
-                v2 WallTopLeft = V2(
-                    ViewCenter.X 
-                        + (real32)TileMap->PixPerMeter * Entity.Hot->P.X 
-                        - 0.5f*Entity.Cold->Width*TileMap->PixPerMeter,
-                    ViewCenter.Y 
-                        - (real32)TileMap->PixPerMeter * Entity.Hot->P.Y 
-                        - 0.5f*Entity.Cold->Height*TileMap->PixPerMeter
-                );
-                v2 PixPerMeter = V2(
-                    Entity.Cold->Width*TileMap->PixPerMeter, 
-                    Entity.Cold->Height*TileMap->PixPerMeter);
-                DrawRectangle(Buffer, WallTopLeft, 
-                            WallTopLeft + PixPerMeter,
-                            WallR, WallG, WallB);
-            }
+            real32 PlayerR = 1.0f;
+            real32 PlayerG = 1.0f;
+            real32 PlayerB = 0.0f;
+            v2 PlayerTopLeft = V2(
+                ViewCenter.X 
+                    + (real32)TileMap->PixPerMeter * Entity.Hot->P.X 
+                    - 0.5f*Entity.Cold->Width*TileMap->PixPerMeter,
+                ViewCenter.Y 
+                    - (real32)TileMap->PixPerMeter * Entity.Hot->P.Y 
+                    - 0.5f*Entity.Cold->Height*TileMap->PixPerMeter
+            );
+            v2 PixPerMeter = V2(
+                Entity.Cold->Width*TileMap->PixPerMeter, 
+                Entity.Cold->Height*TileMap->PixPerMeter);
+            DrawRectangle(Buffer, PlayerTopLeft, 
+                        PlayerTopLeft + PixPerMeter,
+                        PlayerR, PlayerG, PlayerB);
+            hero_bitmaps HeroBitmaps = GameState->HeroBitmap[Entity.Hot->FacingDirection];
+            v2 PlayerBitmapTopLeft = PlayerTopLeft + V2(
+                -0.4f*(real32)HeroBitmaps.Body.Width,
+                -0.8f*(real32)HeroBitmaps.Body.Height);
+            DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerBitmapTopLeft);
+            DrawBitmap(Buffer, &HeroBitmaps.Body, PlayerBitmapTopLeft);
+            DrawBitmap(Buffer, &HeroBitmaps.Head, PlayerBitmapTopLeft);
+        }
+        if (Entity.Cold->Type == EntityType_Wall)
+        {
+            real32 WallR = 1.0f;
+            real32 WallG = 0.0f;
+            real32 WallB = 1.0f;
+            v2 WallTopLeft = V2(
+                ViewCenter.X 
+                    + (real32)TileMap->PixPerMeter * Entity.Hot->P.X 
+                    - 0.5f*Entity.Cold->Width*TileMap->PixPerMeter,
+                ViewCenter.Y 
+                    - (real32)TileMap->PixPerMeter * Entity.Hot->P.Y 
+                    - 0.5f*Entity.Cold->Height*TileMap->PixPerMeter
+            );
+            v2 PixPerMeter = V2(
+                Entity.Cold->Width*TileMap->PixPerMeter, 
+                Entity.Cold->Height*TileMap->PixPerMeter);
+            DrawRectangle(Buffer, WallTopLeft, 
+                        WallTopLeft + PixPerMeter,
+                        WallR, WallG, WallB);
         }
     }
 

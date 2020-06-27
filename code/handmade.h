@@ -211,6 +211,8 @@ struct hot_entity
     v2 dP;
     uint32 AbsTileZ;
     uint32 FacingDirection;
+
+    uint32 ColdIndex;
 };
 
 struct cold_entity
@@ -220,17 +222,12 @@ struct cold_entity
     real32 Width, Height;
     int32 dAbsTileZ;
     bool Collides;
-};
 
-enum entity_residency
-{
-    EntityResidency_Hot,
-    EntityResidency_Cold,
+    uint32 HotIndex;
 };
 
 struct entity
 {
-    entity_residency Residency;
     hot_entity *Hot;
     cold_entity *Cold;
 };
@@ -241,11 +238,9 @@ struct game_state
     world *World;
 
     uint32 PlayerEntityIndex;
-    uint32 EntityCount;
-    entity_residency EntityResidency[5256];
 
     uint32 HotEntityCount;
-    hot_entity HotEntity[5256];
+    hot_entity HotEntity[256];
 
     uint32 ColdEntityCount;
     cold_entity ColdEntity[5256];
