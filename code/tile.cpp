@@ -2,21 +2,48 @@
 #include "handmade.h"
 
 inline tile_chunk*
-GetTileChunk(tile_map *TileMap, uint32 X, uint32 Y, uint32 Z)
+GetTileChunk(tile_map *TileMap, uint32 X, uint32 Y, uint32 Z,
+            memory_arena *Arena = 0)
 {
-    tile_chunk* TileChunk = 0;
-    if (X >= 0 && X < TileMap->TileChunkCountX && 
-        Y >= 0 && Y < TileMap->TileChunkCountY &&
-        Z >= 0 && Z < TileMap->TileChunkCountZ)
+    uint32 TileCount = TileMap->ChunkDim * TileMap->ChunkDim;
+    uint32 HashIndex = 19*X + 7*Y + 3*Z;
+    uint32 HashSlot = HashIndex & (ArrayCount(TileMap->TileChunkHash) - 1);
+    tile_chunk *Chunk = &TileMap->TileChunkHash[HashSlot];
+    do
     {
-        TileChunk = &TileMap->TileChunks[
-            Z * TileMap->TileChunkCountY * TileMap->TileChunkCountX +
-            Y * TileMap->TileChunkCountX +
-            X
-        ];
-    }
+        if (
+            X == Chunk->TileChunkX &&
+            Y == Chunk->TileChunkY &&
+            Z == Chunk->TileChunkZ)
+        {
+            break;
+        }
+        if (Arena && (Chunk->TileChunkX != 0) && (!Chunk->NextInHash))
+        {
+            Chunk->NextInHash = PushStruct(Arena, tile_chunk);
+            Chunk->TileChunkX = 0;
+            Chunk = Chunk->NextInHash;
+        }
+
+        if (Chunk->TileChunkX == 0 && Arena)
+        {
+            Chunk->TileChunkX = X;
+            Chunk->TileChunkY = Y;
+            Chunk->TileChunkZ = Z;
+            Chunk->Map = PushArray(Arena, TileCount, uint32);
+            for (uint32 TileIndex = 0; TileIndex < TileCount; TileIndex++)
+            {
+                Chunk->Map[TileIndex] = 1;
+            }
+
+            Chunk->NextInHash = 0;
+            break;
+        }
+
+        Chunk = Chunk->NextInHash;
+    } while (Chunk);
     
-    return TileChunk;
+    return Chunk;
 }
 
 inline void 
@@ -144,7 +171,9 @@ SetTileValue(memory_arena *Arena, tile_map *TileMap,
             uint32 Val)
 {
     tile_chunk_position ChunkPos = GetChunkPosition(TileMap, X, Y, Z);
-    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ); 
+    tile_chunk *TileChunk = GetTileChunk(TileMap, 
+        ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ,
+        Arena); 
     Assert(TileChunk);
 
     if (!TileChunk->Map)
@@ -206,4 +235,23 @@ CenteredTilePoint(uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
     Result.AbsTileZ = AbsTileZ;
 
     return Result;
+}
+
+internal void
+InitializeTileMap(tile_map *TileMap)
+{
+    TileMap->ChunkShift = 8;
+    TileMap->ChunkMask = (1 << TileMap->ChunkShift) - 1;
+    TileMap->ChunkDim = (1 << TileMap->ChunkShift);
+
+    TileMap->TileSideInMeters = 1.4f;
+    TileMap->TileSideInPixels = 60;
+    TileMap->PixPerMeter = RoundReal32toInt32((real32)TileMap->TileSideInPixels / TileMap->TileSideInMeters);
+
+    for (uint32 TileChunkIndex = 0; 
+        TileChunkIndex < ArrayCount(TileMap->TileChunkHash); 
+        TileChunkIndex++)
+    {
+        TileMap->TileChunkHash[TileChunkIndex].TileChunkX = 0;
+    }
 }

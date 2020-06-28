@@ -2,7 +2,13 @@
 
 struct tile_chunk
 {
+    uint32 TileChunkX;
+    uint32 TileChunkY;
+    uint32 TileChunkZ;
+
     uint32 *Map;
+
+    tile_chunk *NextInHash;
 };
 
 struct tile_chunk_position
@@ -17,18 +23,16 @@ struct tile_chunk_position
 
 struct tile_map
 {
-    uint32 TileChunkCountX;
-    uint32 TileChunkCountY;
-    uint32 TileChunkCountZ;
-    tile_chunk *TileChunks;
-
     uint32 ChunkShift;
     uint32 ChunkMask;
     uint32 ChunkDim;
-
+    
     real32 TileSideInMeters;
     int32 TileSideInPixels;
     int32 PixPerMeter;
+
+    tile_chunk TileChunkHash[4096];
+
 };
 
 struct tile_map_postition

@@ -7,8 +7,8 @@
 
 internal void 
 DrawPoint(game_offscreen_buffer *Buffer,
-                        real32 RealX, real32 RealY,
-                        real32 R, real32 G, real32 B)
+        real32 RealX, real32 RealY,
+        real32 R, real32 G, real32 B)
 {
     int32 X = RoundReal32toInt32(RealX);
     int32 Y = RoundReal32toInt32(RealY);
@@ -253,10 +253,11 @@ DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, v2 Coord)
     }
 }
 
-internal void 
+internal bool 
 TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 PlayerDeltaY,
          real32 *tMin, real32 MinY, real32 MaxY)
 {
+    bool Collided = false;
     real32 tEpsilon = 0.001f;
     if(PlayerDeltaX != 0.0f)
     {
@@ -266,11 +267,12 @@ TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 Pla
         {
             if((Y >= MinY) && (Y <= MaxY))
             {
+                Collided = true;
                 *tMin = Maximum(0.0f, tResult - tEpsilon);
             }
         }
     }
-
+    return Collided;
 }
 
 bool 
@@ -360,8 +362,7 @@ InitializePlayer(game_state *GameState)
     uint32 idx = AddEntity(GameState);
     GameState->PlayerEntityIndex = idx;
     entity Entity = GetEntity(GameState, idx);
-    Entity.Cold->P.AbsTileX = 3;
-    Entity.Cold->P.AbsTileY = 3;
+    Entity.Cold->P = GameState->CameraP;
     Entity.Cold->Width = 0.7f;
     Entity.Cold->Height = 0.4f;
     Entity.Cold->Collides = true;
@@ -384,10 +385,31 @@ AddWall(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ
     return idx;
 }
 
+inline void
+OffsetAndCheckFrequencyByArea(game_state *GameState, v2 Offset, rectangle2 CameraBounds)
+{
+	for(uint32 EntityIndex = 0;
+		EntityIndex < GameState->HotEntityCount;
+		)
+	{
+		hot_entity *Hot = &GameState->HotEntity[EntityIndex];
+
+		Hot->P += Offset;
+		if(IsInRectangle(CameraBounds, Hot->P))
+		{
+			++EntityIndex;
+		}
+		else
+		{
+			MakeEntityCold(GameState, Hot->ColdIndex);
+		}
+	}
+}
+
 internal void
 SetCamera(game_state *GameState, tile_map_postition NewCameraP)
 {
-    v2 Diff = Substract(GameState->World->TileMap, &GameState->CameraP, &NewCameraP);
+    v2 Diff = Substract(GameState->World->TileMap, &NewCameraP, &GameState->CameraP);
     GameState->CameraP = NewCameraP;
     
     uint32 TileXSpan = 17*3;
@@ -395,15 +417,7 @@ SetCamera(game_state *GameState, tile_map_postition NewCameraP)
     rectangle2 CameraBounds = RectCenterDim(
         V2(0,0),
         GameState->World->TileMap->TileSideInMeters*V2((real32)TileXSpan, (real32)TileYSpan));
-    for (uint32 EntityIndex = 0; EntityIndex < GameState->HotEntityCount; EntityIndex++)
-    {
-        GameState->HotEntity[EntityIndex].P += Diff;
-
-        if (!IsInRectangle(CameraBounds, GameState->HotEntity[EntityIndex].P))
-        {
-            MakeEntityCold(GameState, GameState->HotEntity[EntityIndex].ColdIndex);
-        }
-    }
+    OffsetAndCheckFrequencyByArea(GameState, Diff, CameraBounds);
 
     uint32 MaxTileX = NewCameraP.AbsTileX + TileXSpan / 2;
     uint32 MinTileX = NewCameraP.AbsTileX - TileXSpan / 2;
@@ -453,141 +467,119 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->HeroBitmap[3].Body = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/body_left.bmp");
         GameState->HeroBitmap[3].Legs = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/legs_left.bmp");
 
-        GameState->CameraP.AbsTileX = 17 / 2;
-        GameState->CameraP.AbsTileY = 9 / 2;
-        GameState->CameraP.AbsTileZ = 0;
-
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state), 
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
 
         GameState->World = PushStruct(&GameState->WorldArena, world);
-        world *World = GameState->World;
-        World->TileMap = PushStruct(&GameState->WorldArena, tile_map);;
-
-
-        tile_map *TileMap = World->TileMap;
+        GameState->World->TileMap = PushStruct(&GameState->WorldArena, tile_map);;
+        InitializeTileMap(GameState->World->TileMap);
         
-        TileMap->ChunkShift = 8;
-        TileMap->ChunkMask = (1 << TileMap->ChunkShift) - 1;
-        TileMap->ChunkDim = (1 << TileMap->ChunkShift);
-        TileMap->TileSideInMeters = 1.4f;
-        TileMap->TileSideInPixels = 60;
-        TileMap->PixPerMeter = RoundReal32toInt32((real32)TileMap->TileSideInPixels / TileMap->TileSideInMeters);
-        TileMap->TileChunkCountX = 128;
-        TileMap->TileChunkCountY = 128;
-        TileMap->TileChunkCountZ = 2;
-        TileMap->TileChunks = 
-            PushArray(&GameState->WorldArena, 
-                TileMap->TileChunkCountX * TileMap->TileChunkCountY * TileMap->TileChunkCountZ,
-                tile_chunk);
-        GameState->World->TileMap = TileMap;
-        InitializePlayer(GameState);
         
-        // for (uint32 Y = 0 ; Y < TileMap->TileChunkCountY; Y++)
-        // {
-        //     for (uint32 X = 0 ; X < TileMap->TileChunkCountX; X++)
-        //     {
-        //         TileMap->TileChunks[Y*TileMap->TileChunkCountX + X].Map = 
-        //                 PushArray(&GameState->WorldArena, TileMap->ChunkDim * TileMap->ChunkDim, uint32);
-        //     }
-        // }
-
-        real32 LowerLeftX = -(real32)TileMap->TileSideInPixels/2;
+        real32 LowerLeftX = -(real32)GameState->World->TileMap->TileSideInPixels/2;
         real32 LowerLeftY = (real32)Buffer->Height;
         uint32 TilePerWidth = 17;
         uint32 TilePerHeight = 9;
-        uint32 ScreenY = 0;
-        uint32 ScreenX = 0;
-        uint32 ScreenZ = 0;
+        uint32 ScreenBaseX = (INT16_MAX / TilePerWidth) / 2;
+        uint32 ScreenBaseY = (INT16_MAX / TilePerHeight) / 2;
+        uint32 ScreenBaseZ =  INT16_MAX / 2;
+        uint32 ScreenX = ScreenBaseX;
+        uint32 ScreenY = ScreenBaseY;
+        uint32 ScreenZ = ScreenBaseZ;
         bool DoorUp = true;
         bool DoorDown = false;
         bool DoorStarted = false;
-        for (int32 ScreenIndex = 0; ScreenIndex < 100; ScreenIndex++)
+        tile_map_postition NewCameraP = {};
+        NewCameraP.AbsTileX = ScreenBaseX * TilePerWidth + 17 / 2;
+        NewCameraP.AbsTileY = ScreenBaseY * TilePerHeight + 9 / 2;
+        NewCameraP.AbsTileZ = ScreenBaseZ;
+        GameState->CameraP = NewCameraP;
+        InitializePlayer(GameState);
+        for (int32 ScreenIndex = 0; ScreenIndex < 1; ScreenIndex++)
         {
-                for (uint32 TileY = 0; TileY < TilePerHeight; TileY++)
+            for (uint32 TileY = 0; TileY < TilePerHeight; TileY++)
+            {
+                for (uint32 TileX = 0; TileX < TilePerWidth; TileX++)
                 {
-                    for (uint32 TileX = 0; TileX < TilePerWidth; TileX++)
+                    uint32 AbsTileX = ScreenX * TilePerWidth + TileX;
+                    uint32 AbsTileY = ScreenY * TilePerHeight + TileY;
+                    uint32 AbsTileZ = ScreenZ;
+                    uint32 Val = 1;
+                    if (TileX == 0 || TileX == TilePerWidth - 1)
                     {
-                        uint32 AbsTileX = ScreenX * TilePerWidth + TileX;
-                        uint32 AbsTileY = ScreenY * TilePerHeight + TileY;
-                        uint32 AbsTileZ = ScreenZ;
-                        uint32 Val = 1;
-                        if (TileX == 0 || TileX == TilePerWidth - 1)
-                        {
-                            Val = 2;
-                        }
-                        if (TileY == 0 || TileY == TilePerHeight - 1)
-                        {
-                            Val = 2;
-                        }
-                        if (TileX == 8 || TileY == 4)
-                        {
-                            Val = 1;
-                        }
-                        if (TileX == 10 && TileY == 6 && ScreenX == 0 && ScreenY == 0)
-                        {
-                            DoorStarted = !DoorStarted;
-                            if (DoorUp)
-                            {
-                                Val = 3;
-                            }
-
-                            if (DoorDown)
-                            {
-                                Val = 4;
-                            }
-                        }
-                        SetTileValue(&GameState->WorldArena, 
-                                    World->TileMap, 
-                                    AbsTileX, AbsTileY, AbsTileZ, Val);
-                        if (!IsTileValueEmpty(Val))
-                        {
-                            AddWall(GameState, AbsTileX, AbsTileY, AbsTileZ);
-                        }
-                        
+                        Val = 2;
                     }
+                    if (TileY == 0 || TileY == TilePerHeight - 1)
+                    {
+                        Val = 2;
+                    }
+                    if (TileX == 8 || TileY == 4)
+                    {
+                        Val = 1;
+                    }
+                    if (TileX == 10 && TileY == 6 && ScreenX == 0 && ScreenY == 0)
+                    {
+                        DoorStarted = !DoorStarted;
+                        if (DoorUp)
+                        {
+                            Val = 3;
+                        }
+                        if (DoorDown)
+                        {
+                            Val = 4;
+                        }
+                    }
+                    SetTileValue(&GameState->WorldArena, 
+                                GameState->World->TileMap, 
+                                AbsTileX, AbsTileY, AbsTileZ, Val);
+                    if (!IsTileValueEmpty(Val))
+                    {
+                        AddWall(GameState, AbsTileX, AbsTileY, AbsTileZ);
+                    }
+                    
                 }
+            }
                 
-                if (DoorStarted)
-                {
-                    if (DoorUp)
-                    {
-                        ScreenZ++;
-                    }
-                    else if (DoorDown)
-                    {
-                        ScreenZ--;
-                    }
-                }
-                else
-                {
-                    int random_variable = std::rand();
-                    if (random_variable % 2 == 1)
-                    {
-                        ScreenX++;
-                    }
-                    else
-                    {
-                        ScreenY++;
-                    }
-                }
+            if (DoorStarted)
+            {
                 if (DoorUp)
                 {
-                    DoorDown = true;
-                    DoorUp = false;
+                    ScreenZ++;
                 }
                 else if (DoorDown)
                 {
-                    DoorUp = true;
-                    DoorDown = false;
+                    ScreenZ--;
+                }
+            }
+            else
+            {
+                int random_variable = std::rand();
+                if (random_variable % 2 == 1)
+                {
+                    ScreenX++;
                 }
                 else
                 {
-                    DoorUp = false;
-                    DoorDown = false;
+                    ScreenY++;
                 }
-        }   
-        SetCamera(GameState, GameState->CameraP);
+            }
+            if (DoorUp)
+            {
+                DoorDown = true;
+                DoorUp = false;
+            }
+            else if (DoorDown)
+            {
+                DoorUp = true;
+                DoorDown = false;
+            }
+            else
+            {
+                DoorUp = false;
+                DoorDown = false;
+            }
+        }  
+        
+        SetCamera(GameState, NewCameraP);
         Memory->isInitialized = true;
     }
 
@@ -660,14 +652,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 v2 Rel = Player.Hot->P - TestEntity.Hot->P;
 
-                TestWall(MinCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
-                        &tMin, MinCorner.Y, MaxCorner.Y);
-                TestWall(MaxCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
-                        &tMin, MinCorner.Y, MaxCorner.Y);
-                TestWall(MinCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
-                        &tMin, MinCorner.X, MaxCorner.X);
-                TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
-                        &tMin, MinCorner.X, MaxCorner.X);
+                if (TestWall(MinCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
+                        &tMin, MinCorner.Y, MaxCorner.Y))
+                {
+                    HitEntityIndex = EntityIndex;
+                }
+                if (TestWall(MaxCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y,
+                        &tMin, MinCorner.Y, MaxCorner.Y))
+                {
+                    HitEntityIndex = EntityIndex;
+                }
+                if (TestWall(MinCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
+                        &tMin, MinCorner.X, MaxCorner.X))
+                {
+                    HitEntityIndex = EntityIndex;
+                }
+                if (TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X,
+                        &tMin, MinCorner.X, MaxCorner.X))
+                {
+                    HitEntityIndex = EntityIndex;
+                }
             }
         }
 
