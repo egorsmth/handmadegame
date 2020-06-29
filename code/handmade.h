@@ -167,7 +167,7 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) {}
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) {}
 #include "handmade_math.h"
-#include "tile.h"
+#include "world.h"
 
 #define Minimum(A, B) ((A > B) ? (B) : (A))
 #define Maximum(A, B) ((A < B) ? (B) : (A))
@@ -177,11 +177,6 @@ struct memory_arena
     memory_index Size;
     uint8 * Base;
     memory_index Used;
-};
-
-struct world
-{
-    tile_map *TileMap;
 };
 
 struct loaded_bitmap
@@ -218,7 +213,7 @@ struct hot_entity
 struct cold_entity
 {
     entity_type Type;
-    tile_map_postition P;
+    world_postition P;
     real32 Width, Height;
     int32 dAbsTileZ;
     bool Collides;
@@ -245,7 +240,7 @@ struct game_state
     uint32 ColdEntityCount;
     cold_entity ColdEntity[5256];
 
-    tile_map_postition CameraP;
+    world_postition CameraP;
     loaded_bitmap Backdrop;
     hero_bitmaps HeroBitmap[4];
 };
