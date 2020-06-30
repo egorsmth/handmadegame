@@ -329,7 +329,7 @@ MakeEntityHot(game_state *GameState, uint32 ColdIdx)
             &GameState->ColdEntity[ColdIdx].P);
         GameState->HotEntity[HotIndex].P = Diff;
         GameState->HotEntity[HotIndex].dP = {0, 0};
-        GameState->HotEntity[HotIndex].AbsTileZ = Cold->P.AbsTileZ;
+        GameState->HotEntity[HotIndex].ChunkZ = Cold->P.ChunkZ;
         GameState->HotEntity[HotIndex].ColdIndex = ColdIdx;
         Cold->HotIndex = HotIndex;
     }
@@ -375,9 +375,7 @@ AddWall(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ
 {
     uint32 idx = AddEntity(GameState);
     entity Entity = GetEntity(GameState, idx);
-    Entity.Cold->P.AbsTileX = AbsTileX;
-    Entity.Cold->P.AbsTileY = AbsTileY;
-    Entity.Cold->P.AbsTileZ = AbsTileZ;
+    Entity.Cold->P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
     Entity.Cold->Width = GameState->World->TileSideInMeters;
     Entity.Cold->Height = GameState->World->TileSideInMeters;
     Entity.Cold->Collides = true;
@@ -417,20 +415,20 @@ SetCamera(game_state *GameState, world_postition NewCameraP)
         GameState->World->TileSideInMeters*V2((real32)TileXSpan, (real32)TileYSpan));
     OffsetAndCheckFrequencyByArea(GameState, -Diff, CameraBounds);
 
-    uint32 MaxTileX = NewCameraP.AbsTileX + TileXSpan / 2;
-    uint32 MinTileX = NewCameraP.AbsTileX - TileXSpan / 2;
-    uint32 MaxTileY = NewCameraP.AbsTileY + TileYSpan / 2;
-    uint32 MinTileY = NewCameraP.AbsTileY - TileYSpan / 2;
+    int32 MaxTileX = NewCameraP.ChunkX + TileXSpan / 2;
+    int32 MinTileX = NewCameraP.ChunkX - TileXSpan / 2;
+    int32 MaxTileY = NewCameraP.ChunkY + TileYSpan / 2;
+    int32 MinTileY = NewCameraP.ChunkY - TileYSpan / 2;
     for (uint32 EntityIndex = 0; EntityIndex < GameState->ColdEntityCount; EntityIndex++)
     {
         if (!hasHotEntity(GameState, EntityIndex))
         {
             cold_entity *Cold = &GameState->ColdEntity[EntityIndex];
-            if ((Cold->P.AbsTileZ == NewCameraP.AbsTileZ) &&
-                (Cold->P.AbsTileX >= MinTileX) &&
-                (Cold->P.AbsTileX <= MaxTileX) &&
-                (Cold->P.AbsTileY >= MinTileY) &&
-                (Cold->P.AbsTileY <= MaxTileY))
+            if ((Cold->P.ChunkZ == NewCameraP.ChunkZ) &&
+                (Cold->P.ChunkX >= MinTileX) &&
+                (Cold->P.ChunkX <= MaxTileX) &&
+                (Cold->P.ChunkY >= MinTileY) &&
+                (Cold->P.ChunkY <= MaxTileY))
             {
                 MakeEntityHot(GameState, EntityIndex);
             }
@@ -470,8 +468,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->World = PushStruct(&GameState->WorldArena, world);
         InitializeTileMap(GameState->World);
         
-        
-        real32 LowerLeftX = -(real32)GameState->World->TileSideInPixels/2;
+        real32 TileSideInPixels = 60.0f;
+        real32 LowerLeftX = -TileSideInPixels/2;
         real32 LowerLeftY = (real32)Buffer->Height;
         uint32 TilePerWidth = 17;
         uint32 TilePerHeight = 9;
@@ -485,9 +483,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         bool DoorDown = false;
         bool DoorStarted = false;
         world_postition NewCameraP = {};
-        NewCameraP.AbsTileX = ScreenBaseX * TilePerWidth + 17 / 2;
-        NewCameraP.AbsTileY = ScreenBaseY * TilePerHeight + 9 / 2;
-        NewCameraP.AbsTileZ = ScreenBaseZ;
+        NewCameraP = ChunkPositionFromTilePOstition(GameState->World, 
+            ScreenBaseX * TilePerWidth + 17 / 2, 
+            ScreenBaseY * TilePerHeight + 9 / 2, 
+            ScreenBaseZ);
         GameState->CameraP = NewCameraP;
         InitializePlayer(GameState);
         for (int32 ScreenIndex = 0; ScreenIndex < 100; ScreenIndex++)
@@ -681,7 +680,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         if (HitEntityIndex)
         {
             entity HitEntity = GetEntity(GameState, HitEntityIndex);
-            Player.Hot->AbsTileZ += HitEntity.Cold->dAbsTileZ;
+            Player.Hot->ChunkZ += HitEntity.Cold->dAbsTileZ;
         }
         
         Player.Hot->P = NewPlayerP;
@@ -690,21 +689,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         world_postition NewCameraP = GameState->CameraP;
         if (Player.Hot->P.X > 9.0 * World->TileSideInMeters)
         {
-           NewCameraP.AbsTileX += 17;
+           NewCameraP.ChunkX += 17;
         }
         if (Player.Hot->P.X < -9.0 * World->TileSideInMeters)
         {
-            NewCameraP.AbsTileX -= 17;
+            NewCameraP.ChunkX -= 17;
         }
         if (Player.Hot->P.Y > 5.0 * World->TileSideInMeters)
         {
-            NewCameraP.AbsTileY += 9;
+            NewCameraP.ChunkY += 9;
         }
         if (Player.Hot->P.Y < -5.0 * World->TileSideInMeters)
         {
-            NewCameraP.AbsTileY -= 9;
+            NewCameraP.ChunkY -= 9;
         }
-        NewCameraP.AbsTileZ = Player.Hot->AbsTileZ;
+        NewCameraP.ChunkZ = Player.Hot->ChunkZ;
         SetCamera(GameState, NewCameraP);
     }
     
@@ -712,6 +711,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     v2 ViewCenter = V2((real32)Buffer->Width / 2, (real32)Buffer->Height / 2);
 
+    real32 PixelPerMeter = 60.0f / World->TileSideInMeters;
     for (uint32 i = 0; i < GameState->HotEntityCount; i++)
     {
         entity Entity = GetEntity(GameState, GameState->HotEntity[i].ColdIndex);
@@ -722,15 +722,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             real32 PlayerB = 0.0f;
             v2 PlayerTopLeft = V2(
                 ViewCenter.X 
-                    + (real32)World->PixPerMeter * Entity.Hot->P.X 
-                    - 0.5f*Entity.Cold->Width*World->PixPerMeter,
+                    + PixelPerMeter * Entity.Hot->P.X 
+                    - 0.5f*Entity.Cold->Width * PixelPerMeter,
                 ViewCenter.Y 
-                    - (real32)World->PixPerMeter * Entity.Hot->P.Y 
-                    - 0.5f*Entity.Cold->Height*World->PixPerMeter
+                    - PixelPerMeter * Entity.Hot->P.Y 
+                    - 0.5f*Entity.Cold->Height * PixelPerMeter
             );
             v2 PixPerMeter = V2(
-                Entity.Cold->Width*World->PixPerMeter, 
-                Entity.Cold->Height*World->PixPerMeter);
+                Entity.Cold->Width * PixelPerMeter, 
+                Entity.Cold->Height * PixelPerMeter);
             DrawRectangle(Buffer, PlayerTopLeft, 
                         PlayerTopLeft + PixPerMeter,
                         PlayerR, PlayerG, PlayerB);
@@ -749,15 +749,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             real32 WallB = 1.0f;
             v2 WallTopLeft = V2(
                 ViewCenter.X 
-                    + (real32)World->PixPerMeter * Entity.Hot->P.X 
-                    - 0.5f*Entity.Cold->Width*World->PixPerMeter,
+                    + PixelPerMeter * Entity.Hot->P.X 
+                    - 0.5f*Entity.Cold->Width * PixelPerMeter,
                 ViewCenter.Y 
-                    - (real32)World->PixPerMeter * Entity.Hot->P.Y 
-                    - 0.5f*Entity.Cold->Height*World->PixPerMeter
+                    - PixelPerMeter * Entity.Hot->P.Y 
+                    - 0.5f*Entity.Cold->Height* PixelPerMeter
             );
             v2 PixPerMeter = V2(
-                Entity.Cold->Width*World->PixPerMeter, 
-                Entity.Cold->Height*World->PixPerMeter);
+                Entity.Cold->Width * PixelPerMeter, 
+                Entity.Cold->Height * PixelPerMeter);
             DrawRectangle(Buffer, WallTopLeft, 
                         WallTopLeft + PixPerMeter,
                         WallR, WallG, WallB);

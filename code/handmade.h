@@ -204,7 +204,7 @@ struct hot_entity
     bool Exist;
     v2 P; // relative to the camera
     v2 dP;
-    uint32 AbsTileZ;
+    uint32 ChunkZ;
     uint32 FacingDirection;
 
     uint32 ColdIndex;

@@ -20,23 +20,19 @@ struct world_chunk
 
 struct world
 {
-    uint32 ChunkShift;
-    uint32 ChunkMask;
-    uint32 ChunkDim;
-    
     real32 TileSideInMeters;
-    int32 TileSideInPixels;
-    int32 PixPerMeter;
+    real32 ChunkSideInMeters;
+
+    world_entity_block *FirstFree;
 
     world_chunk ChunkHash[4096];
-
 };
 
 struct world_postition
 {
-    uint32 AbsTileX;
-    uint32 AbsTileY;
-    uint32 AbsTileZ;
+    int32 ChunkX;
+    int32 ChunkY;
+    int32 ChunkZ;
 
     v2 RelTile;
 };
