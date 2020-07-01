@@ -137,6 +137,25 @@ IsInRectangle(rectangle2 Rect, v2 Test)
     return Result;
 }
 
+inline v2
+GetMinCorner(rectangle2 Rect)
+{
+    return Rect.TopLeft;
+}
+
+inline v2
+GetMaxCorner(rectangle2 Rect)
+{
+    return Rect.BottomRight;
+}
+
+inline v2
+GetCenter(rectangle2 Rect)
+{
+    v2 Result = 0.5f * (GetMinCorner(Rect) + GetMaxCorner(Rect));
+    return Result;
+}
+
 
 #define HANDMADE_MATH_H
 #endif

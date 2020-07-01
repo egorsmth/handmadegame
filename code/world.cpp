@@ -83,7 +83,7 @@ RecanonicalazeCoord(world *World, int32 *Tile, real32 *TileRel)
 // }
 
 inline world_postition
-MapIntoTileSpace(world *World, world_postition BasePos, v2 Offset)
+MapIntoChunkSpace(world *World, world_postition BasePos, v2 Offset)
 {
     world_postition Result = BasePos;
     Result.RelTile += Offset;
@@ -159,7 +159,7 @@ InitializeTileMap(world *World)
 }
 
 inline void
-InsertEntityIntoWorld(memory_arena *Arena, world *World, uint32 ColdEntityIdx, 
+ChangeEntityLocation(memory_arena *Arena, world *World, uint32 ColdEntityIdx, 
                     world_postition *OldP, world_postition *NewP)
 {
     if (OldP && AreOnSameChunk(World, OldP, NewP))
@@ -174,8 +174,13 @@ InsertEntityIntoWorld(memory_arena *Arena, world *World, uint32 ColdEntityIdx,
         if (Chunk)
         {
             world_entity_block *FirstBlock = &Chunk->FirstBlock;
+            bool Found = false;
             for (world_entity_block *Block = &Chunk->FirstBlock; Block; Block = Block->Next)
             {
+                if (Found)
+                {
+                    break;
+                }
                 for (uint32 EntityIdx = 0; EntityIdx < Block->EntitiesCount; EntityIdx++)
                 {
                     if (Block->LowEntityIndex[EntityIdx] == ColdEntityIdx)
@@ -191,7 +196,7 @@ InsertEntityIntoWorld(memory_arena *Arena, world *World, uint32 ColdEntityIdx,
                                 World->FirstFree = NextBlock;
                             }
                         }
-                        Block = 0;
+                        Found = true;
                         break;
                     }
                 }      

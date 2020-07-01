@@ -307,32 +307,58 @@ GetEntity(game_state *GameState, uint32 idx)
 }
 
 internal uint32
-AddEntity(game_state *GameState)
+AddEntity(game_state *GameState, world_postition P)
 {
     uint32 idx = GameState->ColdEntityCount;
     GameState->ColdEntity[idx] = {};
+    GameState->ColdEntity[idx].P = P;
 
     GameState->ColdEntityCount++;
+    ChangeEntityLocation(&GameState->WorldArena, GameState->World, idx, 0, &P);
     return idx;
 }
 
-internal void
+inline v2 
+GetCameraSpace(game_state *GameState, cold_entity *Cold)
+{
+    v2 Diff = Substract(
+        GameState->World, 
+        &GameState->CameraP, 
+        &Cold->P);
+    return Diff;
+}
+
+inline hot_entity *
+MakeEntityHot(game_state *GameState, uint32 ColdIdx, v2 P)
+{
+    Assert(!hasHotEntity(GameState, ColdIdx) && GameState->HotEntityCount < ArrayCount(GameState->HotEntity));
+    cold_entity *Cold = &GameState->ColdEntity[ColdIdx];
+    hot_entity *Result = 0;
+    uint32 HotIndex = GameState->HotEntityCount++;
+    Result = &GameState->HotEntity[HotIndex];
+    Cold->HotIndex = HotIndex;
+    Result->P = P;
+    Result->dP = {0, 0};
+    Result->ChunkZ = Cold->P.ChunkZ;
+    Result->ColdIndex = ColdIdx;
+    return Result;
+}
+
+inline hot_entity *
 MakeEntityHot(game_state *GameState, uint32 ColdIdx)
 {
+    hot_entity *Result = 0;
     cold_entity *Cold = &GameState->ColdEntity[ColdIdx];
-    if (!hasHotEntity(GameState, ColdIdx) && GameState->HotEntityCount < ArrayCount(GameState->HotEntity))
+    if (hasHotEntity(GameState, ColdIdx) && GameState->HotEntityCount < ArrayCount(GameState->HotEntity))
     {
-        uint32 HotIndex = GameState->HotEntityCount++;
-        v2 Diff = Substract(
-            GameState->World, 
-            &GameState->CameraP, 
-            &GameState->ColdEntity[ColdIdx].P);
-        GameState->HotEntity[HotIndex].P = Diff;
-        GameState->HotEntity[HotIndex].dP = {0, 0};
-        GameState->HotEntity[HotIndex].ChunkZ = Cold->P.ChunkZ;
-        GameState->HotEntity[HotIndex].ColdIndex = ColdIdx;
-        Cold->HotIndex = HotIndex;
+        Result = &GameState->HotEntity[Cold->HotIndex];
     }
+    else
+    {
+        v2 CameraSpace = GetCameraSpace(GameState, Cold);
+        Result = MakeEntityHot(GameState, ColdIdx, CameraSpace);
+    }
+    return Result;
 }
 
 internal void
@@ -359,10 +385,9 @@ MakeEntityCold(game_state *GameState, uint32 ColdIdx)
 internal void
 InitializePlayer(game_state *GameState)
 {
-    uint32 idx = AddEntity(GameState);
+    uint32 idx = AddEntity(GameState, GameState->CameraP);
     GameState->PlayerEntityIndex = idx;
     entity Entity = GetEntity(GameState, idx);
-    Entity.Cold->P = GameState->CameraP;
     Entity.Cold->Width = 0.7f;
     Entity.Cold->Height = 0.4f;
     Entity.Cold->Collides = true;
@@ -373,14 +398,26 @@ InitializePlayer(game_state *GameState)
 internal uint32
 AddWall(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
 {
-    uint32 idx = AddEntity(GameState);
+    world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
+    uint32 idx = AddEntity(GameState, P);
     entity Entity = GetEntity(GameState, idx);
-    Entity.Cold->P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
     Entity.Cold->Width = GameState->World->TileSideInMeters;
     Entity.Cold->Height = GameState->World->TileSideInMeters;
     Entity.Cold->Collides = true;
     Entity.Cold->Type = EntityType_Wall;
     return idx;
+}
+
+inline bool
+ValidateEntityPairs(game_state *GameState)
+{
+    bool Valid = true;
+    for (uint32 EntityIndex = 0; Valid && EntityIndex < GameState->HotEntityCount; EntityIndex++)
+    {
+        uint32 ColdIdx = GameState->HotEntity[EntityIndex].ColdIndex;
+        Valid = GameState->ColdEntity[ColdIdx].HotIndex == EntityIndex;
+    }
+    return Valid;
 }
 
 inline void
@@ -405,6 +442,7 @@ OffsetAndCheckFrequencyByArea(game_state *GameState, v2 Offset, rectangle2 Bound
 internal void
 SetCamera(game_state *GameState, world_postition NewCameraP)
 {
+    Assert(ValidateEntityPairs(GameState));
     v2 Diff = Substract(GameState->World, &NewCameraP, &GameState->CameraP);
     GameState->CameraP = NewCameraP;
     
@@ -414,26 +452,35 @@ SetCamera(game_state *GameState, world_postition NewCameraP)
         V2(0,0),
         GameState->World->TileSideInMeters*V2((real32)TileXSpan, (real32)TileYSpan));
     OffsetAndCheckFrequencyByArea(GameState, -Diff, CameraBounds);
-
-    int32 MaxTileX = NewCameraP.ChunkX + TileXSpan / 2;
-    int32 MinTileX = NewCameraP.ChunkX - TileXSpan / 2;
-    int32 MaxTileY = NewCameraP.ChunkY + TileYSpan / 2;
-    int32 MinTileY = NewCameraP.ChunkY - TileYSpan / 2;
-    for (uint32 EntityIndex = 0; EntityIndex < GameState->ColdEntityCount; EntityIndex++)
+    Assert(ValidateEntityPairs(GameState));
+    world_postition MinChunkP = MapIntoChunkSpace(GameState->World, NewCameraP, GetMinCorner(CameraBounds));
+    world_postition MaxChunkP = MapIntoChunkSpace(GameState->World, NewCameraP, GetMaxCorner(CameraBounds));
+    for (int32 ChunkY = MinChunkP.ChunkY;ChunkY <= MaxChunkP.ChunkY; ChunkY++)
     {
-        if (!hasHotEntity(GameState, EntityIndex))
+        for (int32 ChunkX = MinChunkP.ChunkX; ChunkX <= MaxChunkP.ChunkX; ChunkX++)
         {
-            cold_entity *Cold = &GameState->ColdEntity[EntityIndex];
-            if ((Cold->P.ChunkZ == NewCameraP.ChunkZ) &&
-                (Cold->P.ChunkX >= MinTileX) &&
-                (Cold->P.ChunkX <= MaxTileX) &&
-                (Cold->P.ChunkY >= MinTileY) &&
-                (Cold->P.ChunkY <= MaxTileY))
+            world_chunk *Chunk = GetWorldChunk(GameState->World, ChunkX, ChunkY, NewCameraP.ChunkZ);
+            if (Chunk)
             {
-                MakeEntityHot(GameState, EntityIndex);
+                for (world_entity_block *Block = &Chunk->FirstBlock;Block;Block=Block->Next)
+                {
+                    for (uint32 EntityIndex = 0; EntityIndex < Block->EntitiesCount; EntityIndex++)
+                    {
+                        if (!hasHotEntity(GameState, Block->LowEntityIndex[EntityIndex]))
+                        {
+                            cold_entity *Cold = &GameState->ColdEntity[Block->LowEntityIndex[EntityIndex]];
+                            v2 CameraSpace = GetCameraSpace(GameState, Cold);
+                            if (IsInRectangle(CameraBounds, CameraSpace))
+                            {
+                                MakeEntityHot(GameState, Block->LowEntityIndex[EntityIndex], CameraSpace);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+    Assert(ValidateEntityPairs(GameState));
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -487,6 +534,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ScreenBaseX * TilePerWidth + 17 / 2, 
             ScreenBaseY * TilePerHeight + 9 / 2, 
             ScreenBaseZ);
+        NewCameraP = MapIntoChunkSpace(GameState->World, NewCameraP, V2(0,0));
         GameState->CameraP = NewCameraP;
         InitializePlayer(GameState);
         for (int32 ScreenIndex = 0; ScreenIndex < 100; ScreenIndex++)
@@ -684,9 +732,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         
         Player.Hot->P = NewPlayerP;
-        Player.Cold->P = MapIntoTileSpace(World, GameState->CameraP, Player.Hot->P);
+        world_postition NewWorldP = MapIntoChunkSpace(World, GameState->CameraP, Player.Hot->P);
+        ChangeEntityLocation(&GameState->WorldArena, GameState->World, Player.Hot->ColdIndex, &Player.Cold->P, &NewWorldP);
+        Player.Cold->P = NewWorldP;
 
         world_postition NewCameraP = GameState->CameraP;
+        #if 0
         if (Player.Hot->P.X > 9.0 * World->TileSideInMeters)
         {
            NewCameraP.ChunkX += 17;
@@ -703,6 +754,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             NewCameraP.ChunkY -= 9;
         }
+        #else
+        NewCameraP = Player.Cold->P;
+        #endif
         NewCameraP.ChunkZ = Player.Hot->ChunkZ;
         SetCamera(GameState, NewCameraP);
     }
