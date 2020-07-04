@@ -204,13 +204,13 @@ ChangeEntityLocation(memory_arena *Arena, world *World, uint32 ColdEntityIdx,
         }
     }
     world_chunk *Chunk = GetWorldChunk(World, NewP->ChunkX, NewP->ChunkY, NewP->ChunkZ, Arena);
-    world_entity_block Block = Chunk->FirstBlock;
-    if (Block.EntitiesCount == ArrayCount(Block.LowEntityIndex))
+    world_entity_block *Block = &Chunk->FirstBlock;
+    if (Block->EntitiesCount == ArrayCount(Block->LowEntityIndex))
     {
         world_entity_block *OldBlock = PushStruct(Arena, world_entity_block);
-        *OldBlock = Block;
-        Block.Next = OldBlock;
-        Block.EntitiesCount = 0;
+        *OldBlock = *Block;
+        Block->Next = OldBlock;
+        Block->EntitiesCount = 0;
     }
-    Block.LowEntityIndex[Block.EntitiesCount++] = ColdEntityIdx;
+    Block->LowEntityIndex[Block->EntitiesCount++] = ColdEntityIdx;
 }

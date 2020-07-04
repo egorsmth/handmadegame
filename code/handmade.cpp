@@ -396,9 +396,8 @@ InitializePlayer(game_state *GameState)
 }
 
 internal uint32
-AddWall(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
+AddWall(game_state *GameState, world_postition P)
 {
-    world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
     uint32 idx = AddEntity(GameState, P);
     entity Entity = GetEntity(GameState, idx);
     Entity.Cold->Width = GameState->World->TileSideInMeters;
@@ -423,10 +422,11 @@ ValidateEntityPairs(game_state *GameState)
 inline void
 OffsetAndCheckFrequencyByArea(game_state *GameState, v2 Offset, rectangle2 Bounds)
 {
-	for(uint32 EntityIndex = 0;EntityIndex < GameState->HotEntityCount;)
+    // do not check player (player cold index = 0)
+	for(uint32 EntityIndex = 1;EntityIndex < GameState->HotEntityCount;)
 	{
 		hot_entity *Hot = &GameState->HotEntity[EntityIndex];
-
+        Assert(GameState->ColdEntity[Hot->ColdIndex].HotIndex == EntityIndex);
 		Hot->P += Offset;
 		if(IsInRectangle(Bounds, Hot->P))
 		{
@@ -574,7 +574,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                     if (!IsTileValueEmpty(Val))
                     {
-                        AddWall(GameState, AbsTileX, AbsTileY, AbsTileZ);
+                        world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
+                        P = MapIntoChunkSpace(GameState->World, P, V2(0,0));
+                        AddWall(GameState, P);
                     }
                     
                 }
@@ -737,7 +739,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Player.Cold->P = NewWorldP;
 
         world_postition NewCameraP = GameState->CameraP;
-        #if 0
         if (Player.Hot->P.X > 9.0 * World->TileSideInMeters)
         {
            NewCameraP.ChunkX += 17;
@@ -754,9 +755,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             NewCameraP.ChunkY -= 9;
         }
-        #else
-        NewCameraP = Player.Cold->P;
-        #endif
         NewCameraP.ChunkZ = Player.Hot->ChunkZ;
         SetCamera(GameState, NewCameraP);
     }
