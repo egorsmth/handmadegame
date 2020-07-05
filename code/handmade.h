@@ -196,7 +196,9 @@ struct hero_bitmaps
 enum entity_type
 {
     EntityType_Player,
-    EntityType_Wall
+    EntityType_Wall,
+    EntityType_Familiar,
+    EntityType_Monster
 };
 
 struct hot_entity

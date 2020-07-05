@@ -128,7 +128,9 @@ ChunkPositionFromTilePOstition(world *World,
     Res.ChunkZ = AbsTileZ / TILES_PER_CHUNNK;
     Res.RelTile.X = (real32)(AbsTileX - (Res.ChunkX*TILES_PER_CHUNNK)) * World->TileSideInMeters;
     Res.RelTile.Y = (real32)(AbsTileY - (Res.ChunkY*TILES_PER_CHUNNK)) * World->TileSideInMeters;
-    return Res;
+    world_postition P = MapIntoChunkSpace(World, Res, V2(0,0));
+
+    return P;
 }
 
 inline world_postition 

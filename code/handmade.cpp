@@ -385,6 +385,7 @@ MakeEntityCold(game_state *GameState, uint32 ColdIdx)
 internal void
 InitializePlayer(game_state *GameState)
 {
+    //world_postition P = MapIntoChunkSpace(GameState->World, GameState->CameraP, V2(0,0));
     uint32 idx = AddEntity(GameState, GameState->CameraP);
     GameState->PlayerEntityIndex = idx;
     entity Entity = GetEntity(GameState, idx);
@@ -396,14 +397,44 @@ InitializePlayer(game_state *GameState)
 }
 
 internal uint32
-AddWall(game_state *GameState, world_postition P)
+AddWall(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
 {
+    world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
+    //P = MapIntoChunkSpace(GameState->World, P, V2(0,0));
     uint32 idx = AddEntity(GameState, P);
     entity Entity = GetEntity(GameState, idx);
     Entity.Cold->Width = GameState->World->TileSideInMeters;
     Entity.Cold->Height = GameState->World->TileSideInMeters;
     Entity.Cold->Collides = true;
     Entity.Cold->Type = EntityType_Wall;
+    return idx;
+}
+
+internal uint32
+AddMonster(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
+{
+    world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
+    //P = MapIntoChunkSpace(GameState->World, P, V2(0,0));
+    uint32 idx = AddEntity(GameState, P);
+    entity Entity = GetEntity(GameState, idx);
+    Entity.Cold->Width = 0.7f;
+    Entity.Cold->Height = 0.4f;
+    Entity.Cold->Collides = true;
+    Entity.Cold->Type = EntityType_Monster;
+    return idx;
+}
+
+internal uint32
+AddFamiliar(game_state *GameState, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ)
+{
+    world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
+    //P = MapIntoChunkSpace(GameState->World, P, V2(0,0));
+    uint32 idx = AddEntity(GameState, P);
+    entity Entity = GetEntity(GameState, idx);
+    Entity.Cold->Width = 0.7f;
+    Entity.Cold->Height = 0.4f;
+    Entity.Cold->Collides = false;
+    Entity.Cold->Type = EntityType_Familiar;
     return idx;
 }
 
@@ -483,6 +514,12 @@ SetCamera(game_state *GameState, world_postition NewCameraP)
     Assert(ValidateEntityPairs(GameState));
 }
 
+// internal void
+// UpdateEntity(GameState, Entity, dt)
+// {
+
+// }
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -530,13 +567,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         bool DoorDown = false;
         bool DoorStarted = false;
         world_postition NewCameraP = {};
+        uint32 CameraX = ScreenBaseX * TilePerWidth + 17 / 2;
+        uint32 CameraY = ScreenBaseY * TilePerHeight + 9 / 2;
+        uint32 CameraZ = ScreenBaseZ;
         NewCameraP = ChunkPositionFromTilePOstition(GameState->World, 
-            ScreenBaseX * TilePerWidth + 17 / 2, 
-            ScreenBaseY * TilePerHeight + 9 / 2, 
-            ScreenBaseZ);
-        NewCameraP = MapIntoChunkSpace(GameState->World, NewCameraP, V2(0,0));
+            CameraX, CameraY, CameraZ);
         GameState->CameraP = NewCameraP;
-        InitializePlayer(GameState);
+        InitializePlayer(GameState); // initiliztion should be before walls becous index 0
+        // in cold entitiyes should be hero, fix that some day, make 0 index forever empty and start from 1
         for (int32 ScreenIndex = 0; ScreenIndex < 100; ScreenIndex++)
         {
             for (uint32 TileY = 0; TileY < TilePerHeight; TileY++)
@@ -574,11 +612,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                     if (!IsTileValueEmpty(Val))
                     {
-                        world_postition P = ChunkPositionFromTilePOstition(GameState->World, AbsTileX, AbsTileY, AbsTileZ);
-                        P = MapIntoChunkSpace(GameState->World, P, V2(0,0));
-                        AddWall(GameState, P);
+                        AddWall(GameState, AbsTileX, AbsTileY, AbsTileZ);
                     }
-                    
                 }
             }
                 
@@ -622,6 +657,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
         }  
         
+        AddMonster(GameState, CameraX + 2, CameraY + 2, CameraZ);
+        AddFamiliar(GameState, CameraX - 2, CameraY + 2, CameraZ);
         SetCamera(GameState, NewCameraP);
         Memory->isInitialized = true;
     }
@@ -658,7 +695,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {       
         ddPlayer *= (1.0f / sqrtf(ddPLength));
     }
-    real32 PlayerSpeed = 50.0f;
+    real32 PlayerSpeed = 10.0f;
     ddPlayer *= PlayerSpeed;
 
     // ODE should be here
@@ -737,7 +774,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         world_postition NewWorldP = MapIntoChunkSpace(World, GameState->CameraP, Player.Hot->P);
         ChangeEntityLocation(&GameState->WorldArena, GameState->World, Player.Hot->ColdIndex, &Player.Cold->P, &NewWorldP);
         Player.Cold->P = NewWorldP;
-
+#if 0
         world_postition NewCameraP = GameState->CameraP;
         if (Player.Hot->P.X > 9.0 * World->TileSideInMeters)
         {
@@ -756,6 +793,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             NewCameraP.ChunkY -= 9;
         }
         NewCameraP.ChunkZ = Player.Hot->ChunkZ;
+#else
+        world_postition NewCameraP = Player.Cold->P;
+#endif
         SetCamera(GameState, NewCameraP);
     }
     
@@ -764,30 +804,33 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v2 ViewCenter = V2((real32)Buffer->Width / 2, (real32)Buffer->Height / 2);
 
     real32 PixelPerMeter = 60.0f / World->TileSideInMeters;
+    
     for (uint32 i = 0; i < GameState->HotEntityCount; i++)
     {
         entity Entity = GetEntity(GameState, GameState->HotEntity[i].ColdIndex);
+        v2 EntityTopLeft = V2(
+            ViewCenter.X 
+            + PixelPerMeter * Entity.Hot->P.X 
+            - 0.5f*Entity.Cold->Width * PixelPerMeter,
+            ViewCenter.Y 
+            - PixelPerMeter * Entity.Hot->P.Y 
+            - 0.5f*Entity.Cold->Height * PixelPerMeter
+        );
+        v2 PixPerMeter = V2(
+            Entity.Cold->Width * PixelPerMeter, 
+            Entity.Cold->Height * PixelPerMeter);
+        v2 EntityBottomRight = EntityTopLeft + PixPerMeter;
+       // UpdateEntity(GameState, Entity, dt);
         if (Entity.Cold->Type == EntityType_Player)
         {
             real32 PlayerR = 1.0f;
             real32 PlayerG = 1.0f;
             real32 PlayerB = 0.0f;
-            v2 PlayerTopLeft = V2(
-                ViewCenter.X 
-                    + PixelPerMeter * Entity.Hot->P.X 
-                    - 0.5f*Entity.Cold->Width * PixelPerMeter,
-                ViewCenter.Y 
-                    - PixelPerMeter * Entity.Hot->P.Y 
-                    - 0.5f*Entity.Cold->Height * PixelPerMeter
-            );
-            v2 PixPerMeter = V2(
-                Entity.Cold->Width * PixelPerMeter, 
-                Entity.Cold->Height * PixelPerMeter);
-            DrawRectangle(Buffer, PlayerTopLeft, 
-                        PlayerTopLeft + PixPerMeter,
+            DrawRectangle(Buffer, EntityTopLeft, 
+                        EntityBottomRight,
                         PlayerR, PlayerG, PlayerB);
             hero_bitmaps HeroBitmaps = GameState->HeroBitmap[Entity.Hot->FacingDirection];
-            v2 PlayerBitmapTopLeft = PlayerTopLeft + V2(
+            v2 PlayerBitmapTopLeft = EntityTopLeft + V2(
                 -0.4f*(real32)HeroBitmaps.Body.Width,
                 -0.8f*(real32)HeroBitmaps.Body.Height);
             DrawBitmap(Buffer, &HeroBitmaps.Legs, PlayerBitmapTopLeft);
@@ -799,19 +842,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             real32 WallR = 1.0f;
             real32 WallG = 0.0f;
             real32 WallB = 1.0f;
-            v2 WallTopLeft = V2(
-                ViewCenter.X 
-                    + PixelPerMeter * Entity.Hot->P.X 
-                    - 0.5f*Entity.Cold->Width * PixelPerMeter,
-                ViewCenter.Y 
-                    - PixelPerMeter * Entity.Hot->P.Y 
-                    - 0.5f*Entity.Cold->Height* PixelPerMeter
-            );
-            v2 PixPerMeter = V2(
-                Entity.Cold->Width * PixelPerMeter, 
-                Entity.Cold->Height * PixelPerMeter);
-            DrawRectangle(Buffer, WallTopLeft, 
-                        WallTopLeft + PixPerMeter,
+            DrawRectangle(Buffer, EntityTopLeft, 
+                        EntityBottomRight,
+                        WallR, WallG, WallB);
+        }
+        if (Entity.Cold->Type == EntityType_Monster)
+        {
+            real32 WallR = 1.0f;
+            real32 WallG = 0.5f;
+            real32 WallB = 1.0f;
+            DrawRectangle(Buffer, EntityTopLeft, 
+                        EntityBottomRight,
+                        WallR, WallG, WallB);
+        }
+        if (Entity.Cold->Type == EntityType_Familiar)
+        {
+            real32 WallR = 1.0f;
+            real32 WallG = 0.5f;
+            real32 WallB = 0.3f;
+            DrawRectangle(Buffer, EntityTopLeft, 
+                        EntityBottomRight,
                         WallR, WallG, WallB);
         }
     }
